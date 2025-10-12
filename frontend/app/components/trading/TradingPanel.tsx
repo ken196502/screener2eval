@@ -1,35 +1,63 @@
-import React, { useState } from 'react'
+import React, { useEffect, useMemo, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select'
+import { toast } from 'react-hot-toast'
 
 interface User {
   current_cash: number
   frozen_cash: number
 }
 
+interface PositionLite { symbol: string; market: string; available_quantity: number }
+
 interface TradingPanelProps {
   onPlace: (payload: any) => void
   user?: User
+  positions?: PositionLite[]
+  lastPrices?: Record<string, number | null>
 }
 
-export default function TradingPanel({ onPlace, user }: TradingPanelProps) {
+export default function TradingPanel({ onPlace, user, positions = [], lastPrices = {} }: TradingPanelProps) {
   const [symbol, setSymbol] = useState('AAPL')
   const [name, setName] = useState('Apple Inc.')
   const [market] = useState<'US'>('US')
   const [orderType, setOrderType] = useState<'MARKET' | 'LIMIT'>('LIMIT')
   const [price, setPrice] = useState<number>(190)
+
+  // 当切换到 MARKET，价格从 WS/父组件传入的最新行情刷新
+  const onSelectOrderType = (v: 'MARKET' | 'LIMIT') => {
+    setOrderType(v)
+    if (v === 'MARKET') {
+      const lp = lastPrices[`${symbol}.${market}`]
+      if (lp && Number.isFinite(lp)) {
+        setPrice(Math.round(lp * 100) / 100)
+      }
+      toast('Using market price from server', { icon: '💹' })
+    }
+  }
+
+  // 市价模式下，随 WS 推送的最新价自动刷新显示价格
+  useEffect(() => {
+    if (orderType !== 'MARKET') return
+    const lp = lastPrices[`${symbol}.${market}`]
+    if (lp && Number.isFinite(lp)) {
+      setPrice(Math.round(lp * 100) / 100)
+    }
+  }, [orderType, lastPrices, symbol, market])
   const [quantity, setQuantity] = useState<number>(2)
 
   // US market only - USD currency
   const currencySymbol = '$'
 
   const adjustPrice = (delta: number) => {
+    if (orderType === 'MARKET') return // 市价单不允许手动改价
     const newPrice = Math.max(0, price + delta)
     setPrice(Math.round(newPrice * 100) / 100) // 保证两位小数
   }
 
   const handlePriceChange = (value: string) => {
+    if (orderType === 'MARKET') return // 市价单不允许手动改价
     // 只允许数字和一个小数点
     if (!/^\d*\.?\d{0,2}$/.test(value)) return
     
@@ -42,12 +70,29 @@ export default function TradingPanel({ onPlace, user }: TradingPanelProps) {
   }
 
   const amount = price * quantity
-  const cashAvailable = user?.current_cash || 0
-  const frozenCash = user?.frozen_cash || 0
-  const positionAvailable = 0 // TODO: Calculate from position data
-  const maxBuyable = Math.floor(cashAvailable / price) || 0
+  const cashAvailable = user?.current_cash ?? 0
+  const frozenCash = user?.frozen_cash ?? 0
+  const availableCash = Math.max(cashAvailable - frozenCash, 0)
+  const positionAvailable = useMemo(() => {
+    const p = positions.find(p => p.symbol === symbol && p.market === market)
+    return p?.available_quantity || 0
+  }, [positions, symbol, market])
+  const effectivePrice = orderType === 'MARKET' ? (lastPrices[`${symbol}.${market}`] ?? price) : price
+  const maxBuyable = Math.floor(availableCash / Math.max(effectivePrice || 0, 0.0001)) || 0
 
   const handleBuy = () => {
+    if (orderType === 'LIMIT' && price <= 0) {
+      toast.error('Please input a valid limit price')
+      return
+    }
+    if (quantity <= 0 || !Number.isFinite(quantity)) {
+      toast.error('Please input a valid quantity')
+      return
+    }
+    if (amount > cashAvailable) {
+      toast.error('Insufficient available cash')
+      return
+    }
     onPlace({
       symbol,
       name,
@@ -60,6 +105,18 @@ export default function TradingPanel({ onPlace, user }: TradingPanelProps) {
   }
 
   const handleSell = () => {
+    if (orderType === 'LIMIT' && price <= 0) {
+      toast.error('Please input a valid limit price')
+      return
+    }
+    if (quantity <= 0 || !Number.isFinite(quantity)) {
+      toast.error('Please input a valid quantity')
+      return
+    }
+    if (quantity > positionAvailable) {
+      toast.error('Insufficient sellable position')
+      return
+    }
     onPlace({
       symbol,
       name,
@@ -95,7 +152,7 @@ export default function TradingPanel({ onPlace, user }: TradingPanelProps) {
             <path d="M12 8h.01"></path>
           </svg>
         </div>
-        <Select value={orderType} onValueChange={(v) => setOrderType(v as 'MARKET' | 'LIMIT')}>
+        <Select value={orderType} onValueChange={(v) => onSelectOrderType(v as 'MARKET' | 'LIMIT')}>
           <SelectTrigger className="bg-input text-xs h-6">
             <SelectValue />
           </SelectTrigger>
@@ -110,23 +167,26 @@ export default function TradingPanel({ onPlace, user }: TradingPanelProps) {
       <div className="space-y-2">
         <label className="text-xs">Price</label>
         <div className="flex items-center gap-2">
-          <Button 
+         <Button 
             onClick={() => adjustPrice(-0.01)}
             variant="outline"
+            disabled={orderType === 'MARKET'}
           >
             -
           </Button>
           <div className="relative flex-1">
-            <Input 
+           <Input 
               inputMode="decimal"
               value={price.toString()}
               onChange={(e) => handlePriceChange(e.target.value)}
               className="text-center"
+              disabled={orderType === 'MARKET'}
             />
           </div>
-          <Button 
+         <Button 
             onClick={() => adjustPrice(0.01)}
             variant="outline"
+            disabled={orderType === 'MARKET'}
           >
             +
           </Button>

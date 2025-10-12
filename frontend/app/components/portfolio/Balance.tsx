@@ -25,7 +25,8 @@ export default function Balance({
     })}`
   }
 
-  const pnl = user.current_cash - user.initial_capital
+  // PnL should be based on total assets (cash + positions value)
+  const pnl = totalAssets - user.initial_capital
   const pnlPercent = (pnl / user.initial_capital) * 100
 
   return (

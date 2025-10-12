@@ -50,7 +50,27 @@ def on_startup():
             db.commit()
     finally:
         db.close()
+    
+    # Start order scheduler
+    from services.order_scheduler import start_order_scheduler
+    start_order_scheduler()
 
+
+@app.on_event("shutdown")
+def on_shutdown():
+    # Stop order scheduler
+    from services.order_scheduler import stop_order_scheduler
+    stop_order_scheduler()
+
+
+# API routes
+from api.market_data_routes import router as market_data_router
+from api.order_routes import router as order_router
+from api.account_routes import router as account_router
+
+app.include_router(market_data_router)
+app.include_router(order_router)
+app.include_router(account_router)
 
 # WebSocket endpoint
 from api.ws import websocket_endpoint

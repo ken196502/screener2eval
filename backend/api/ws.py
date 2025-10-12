@@ -2,14 +2,17 @@ from fastapi import WebSocket, WebSocketDisconnect
 from sqlalchemy.orm import Session
 from typing import Dict, Set
 import json
+import asyncio
 
 from database.connection import SessionLocal
 from repositories.user_repo import get_or_create_user, get_user
 from repositories.order_repo import list_orders
 from repositories.position_repo import list_positions
 from services.asset_calculator import calc_positions_value
-from services.order_executor import place_and_execute
-from database.models import Trade
+from services.market_data import get_last_price
+# from services.order_executor import place_and_execute
+from services.order_matching import create_order, check_and_execute_order
+from database.models import Trade, Order, US_COMMISSION_RATE, US_MIN_COMMISSION
 
 
 class ConnectionManager:
@@ -65,22 +68,30 @@ async def _send_snapshot(db: Session, user_id: int):
         "total_assets": positions_value + float(user.current_cash),
         "positions_value": positions_value,
     }
+    # enrich positions with latest price and market value
+    enriched_positions = []
+    for p in positions:
+        try:
+            price = get_last_price(p.symbol, p.market)
+        except Exception:
+            price = None
+        enriched_positions.append({
+            "id": p.id,
+            "user_id": p.user_id,
+            "symbol": p.symbol,
+            "name": p.name,
+            "market": p.market,
+            "quantity": p.quantity,
+            "available_quantity": p.available_quantity,
+            "avg_cost": float(p.avg_cost),
+            "last_price": float(price) if price is not None else None,
+            "market_value": (float(price) * p.quantity) if price is not None else None,
+        })
+
     await manager.send_to_user(user_id, {
         "type": "snapshot",
         "overview": overview,
-        "positions": [
-            {
-                "id": p.id,
-                "user_id": p.user_id,
-                "symbol": p.symbol,
-                "name": p.name,
-                "market": p.market,
-                "quantity": p.quantity,
-                "available_quantity": p.available_quantity,
-                "avg_cost": float(p.avg_cost),
-            }
-            for p in positions
-        ],
+        "positions": enriched_positions,
         "orders": [
             {
                 "id": o.id,
@@ -120,7 +131,24 @@ async def _send_snapshot(db: Session, user_id: int):
 async def websocket_endpoint(websocket: WebSocket):
     await websocket.accept()
     user_id: int | None = None
+    # background periodic snapshot task
+    periodic_task = None
+    async def periodic_snapshot():
+        while True:
+            try:
+                await asyncio.sleep(10)
+                if user_id is None:
+                    continue
+                db: Session = SessionLocal()
+                try:
+                    await _send_snapshot(db, user_id)
+                finally:
+                    db.close()
+            except Exception:
+                # ignore periodic errors
+                pass
     try:
+        periodic_task = asyncio.create_task(periodic_snapshot())
         while True:
             data = await websocket.receive_text()
             msg = json.loads(data)
@@ -153,18 +181,34 @@ async def websocket_endpoint(websocket: WebSocket):
                         continue
                     user = get_user(db, user_id)
                     try:
-                        order = place_and_execute(
-                            db,
-                            user,
-                            msg["symbol"],
-                            msg.get("name", msg["symbol"]),
-                            msg["market"],
-                            msg["side"],
-                            msg.get("order_type", "MARKET"),
-                            msg.get("price"),
-                            int(msg["quantity"]),
+                        order = create_order(
+                            db=db,
+                            user=user,
+                            symbol=msg["symbol"],
+                            name=msg.get("name", msg["symbol"]),
+                            market=msg["market"],
+                            side=msg["side"],
+                            order_type=msg.get("order_type", "MARKET"),
+                            price=msg.get("price"),
+                            quantity=int(msg["quantity"])
                         )
-                        await manager.send_to_user(user_id, {"type": "order_filled", "order_id": order.id})
+                        # 对于限价买入，冻结预估成交金额（市价或限价取较小）+ 佣金；对于市价买入，按市价估算
+                        if order.side == "BUY":
+                            try:
+                                market_price = get_last_price(order.symbol, order.market)
+                            except Exception:
+                                market_price = order.price or 0.0
+                            ref_price = min(float(order.price) if order.price else float(market_price), float(market_price) if market_price else float(order.price or 0.0)) or float(order.price or market_price or 0.0)
+                            notional = ref_price * order.quantity
+                            commission = max(notional * float(US_COMMISSION_RATE), float(US_MIN_COMMISSION))
+                            user.frozen_cash = float(user.frozen_cash) + (notional + commission)
+                            db.commit()
+                        # 检查成交条件并尝试立即成交一次
+                        executed = check_and_execute_order(db, order)
+                        if executed:
+                            await manager.send_to_user(user_id, {"type": "order_filled", "order_id": order.id})
+                        else:
+                            await manager.send_to_user(user_id, {"type": "order_pending", "order_id": order.id})
                         await _send_snapshot(db, user_id)
                     except ValueError as e:
                         await manager.send_to_user(user_id, {"type": "error", "message": str(e)})
@@ -205,3 +249,9 @@ async def websocket_endpoint(websocket: WebSocket):
         if user_id is not None:
             manager.unregister(user_id, websocket)
         return
+    finally:
+        try:
+            if periodic_task:
+                periodic_task.cancel()
+        except Exception:
+            pass

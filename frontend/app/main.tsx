@@ -3,6 +3,8 @@ import ReactDOM from 'react-dom/client'
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@/components/ui/table'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 import './index.css'
+import { Toaster, toast } from 'react-hot-toast'
+import { Button } from '@/components/ui/button'
 
 // Create a module-level WebSocket singleton to avoid duplicate connections in React StrictMode
 let __WS_SINGLETON__: WebSocket | null = null;
@@ -25,7 +27,7 @@ interface Overview {
   total_assets: number
   positions_value: number
 }
-interface Position { id: number; user_id: number; symbol: string; name: string; market: string; quantity: number; available_quantity: number; avg_cost: number }
+interface Position { id: number; user_id: number; symbol: string; name: string; market: string; quantity: number; available_quantity: number; avg_cost: number; last_price?: number | null; market_value?: number | null }
 interface Order { id: number; order_no: string; symbol: string; name: string; market: string; side: string; order_type: string; price?: number; quantity: number; filled_quantity: number; status: string }
 interface Trade { id: number; order_id: number; user_id: number; symbol: string; name: string; market: string; side: string; price: number; quantity: number; commission: number; trade_time: string }
 
@@ -41,7 +43,7 @@ function App() {
     let ws = __WS_SINGLETON__
     const created = !ws || ws.readyState === WebSocket.CLOSING || ws.readyState === WebSocket.CLOSED
     if (created) {
-      ws = new WebSocket('ws://localhost:2611/ws')
+      ws = new WebSocket('ws://localhost:8001/ws')
       __WS_SINGLETON__ = ws
     }
     wsRef.current = ws!
@@ -53,6 +55,8 @@ function App() {
       const msg = JSON.parse(e.data)
       if (msg.type === 'bootstrap_ok') {
         setUserId(msg.user.id)
+        // request initial snapshot
+        ws!.send(JSON.stringify({ type: 'get_snapshot' }))
       } else if (msg.type === 'snapshot') {
         setOverview(msg.overview)
         setPositions(msg.positions)
@@ -61,9 +65,14 @@ function App() {
       } else if (msg.type === 'trades') {
         setTrades(msg.trades || [])
       } else if (msg.type === 'order_filled') {
-        // ignore, wait for snapshot
+        toast.success('Order filled')
+        ws!.send(JSON.stringify({ type: 'get_snapshot' }))
+      } else if (msg.type === 'order_pending') {
+        toast('Order placed, waiting for fill', { icon: '⏳' })
+        ws!.send(JSON.stringify({ type: 'get_snapshot' }))
       } else if (msg.type === 'error') {
         console.error(msg.message)
+        toast.error(msg.message || 'Order error')
       }
     }
     const handleClose = () => {
@@ -87,9 +96,16 @@ function App() {
   const placeOrder = (payload: any) => {
     if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) {
       console.warn('WS not connected, cannot place order')
+      toast.error('Not connected to server')
       return
     }
-    wsRef.current.send(JSON.stringify({ type: 'place_order', ...payload }))
+    try {
+      wsRef.current.send(JSON.stringify({ type: 'place_order', ...payload }))
+      toast('Placing order...', { icon: '📝' })
+    } catch (e) {
+      console.error(e)
+      toast.error('Failed to send order')
+    }
   }
 
   if (!userId || !overview) return <div className="p-8">Connecting to trading server...</div>
@@ -111,6 +127,8 @@ function App() {
               <TradingPanel
                 onPlace={placeOrder}
                 user={overview.user}
+                positions={positions.map(p => ({ symbol: p.symbol, market: p.market, available_quantity: p.available_quantity }))}
+                lastPrices={Object.fromEntries(positions.map(p => [`${p.symbol}.${p.market}`, p.last_price ?? null]))}
               />
             </div>
 
@@ -146,13 +164,15 @@ function App() {
 }
 
 
+const API_BASE = 'http://127.0.0.1:8001'
+
 function OrderBookWS({ orders }: { orders: Order[] }) {
   return (
     <div>
       <Table>
         <TableHeader>
           <TableRow>
-            <TableHead>Time</TableHead><TableHead>Order No</TableHead><TableHead>Symbol</TableHead><TableHead>Side</TableHead><TableHead>Type</TableHead><TableHead>Price</TableHead><TableHead>Qty</TableHead><TableHead>Status</TableHead>
+            <TableHead>Time</TableHead><TableHead>Order No</TableHead><TableHead>Symbol</TableHead><TableHead>Side</TableHead><TableHead>Type</TableHead><TableHead>Price</TableHead><TableHead>Qty</TableHead><TableHead>Status</TableHead><TableHead>Actions</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -166,6 +186,27 @@ function OrderBookWS({ orders }: { orders: Order[] }) {
               <TableCell>{o.price ?? '-'}</TableCell>
               <TableCell>{o.quantity}</TableCell>
               <TableCell>{o.status}</TableCell>
+              <TableCell>
+                {o.status === 'PENDING' ? (
+                  <Button
+                    variant="destructive"
+                    size="sm"
+                    onClick={async () => {
+                      try {
+                        const resp = await fetch(`${API_BASE}/api/orders/cancel/${o.id}`, { method: 'POST' })
+                        if (!resp.ok) throw new Error(await resp.text())
+                        toast.success('Order cancelled')
+                        // refresh snapshot via WS
+                        const ws = (window as any).__WS_SINGLETON__ as WebSocket | undefined
+                        ;(ws || (undefined as any))?.send?.(JSON.stringify({ type: 'get_snapshot' }))
+                      } catch (e: any) {
+                        console.error(e)
+                        toast.error(e?.message || 'Cancel failed')
+                      }
+                    }}
+                  >Cancel</Button>
+                ) : null}
+              </TableCell>
             </TableRow>
           ))}
         </TableBody>
@@ -180,7 +221,7 @@ function PositionListWS({ positions }: { positions: Position[] }) {
       <Table>
         <TableHeader>
           <TableRow>
-            <TableHead>Symbol</TableHead><TableHead>Name</TableHead><TableHead>Qty</TableHead><TableHead>Available</TableHead><TableHead>Avg Cost</TableHead>
+            <TableHead>Symbol</TableHead><TableHead>Name</TableHead><TableHead>Qty</TableHead><TableHead>Available</TableHead><TableHead>Avg Cost</TableHead><TableHead>Last Price</TableHead><TableHead>Market Value</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -191,6 +232,8 @@ function PositionListWS({ positions }: { positions: Position[] }) {
               <TableCell>{p.quantity}</TableCell>
               <TableCell>{p.available_quantity}</TableCell>
               <TableCell>{p.avg_cost.toFixed(4)}</TableCell>
+              <TableCell>{p.last_price != null ? p.last_price.toFixed(4) : '-'}</TableCell>
+              <TableCell>{p.market_value != null ? `$${p.market_value.toFixed(2)}` : '-'}</TableCell>
             </TableRow>
           ))}
         </TableBody>
@@ -228,6 +271,7 @@ function TradeHistoryWS({ trades }: { trades: Trade[] }) {
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
+    <Toaster position="top-right" />
     <App />
   </React.StrictMode>,
 )
