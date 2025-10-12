@@ -9,43 +9,25 @@ let __WS_SINGLETON__: WebSocket | null = null;
 
 import Header from '@/components/layout/Header'
 import Sidebar from '@/components/layout/Sidebar'
-import MarketStatus from '@/components/trading/MarketStatus'
 import TradingPanel from '@/components/trading/TradingPanel'
-import MultiCurrencyBalance from '@/components/portfolio/MultiCurrencyBalance'
+import Balance from '@/components/portfolio/Balance'
 
-interface CurrencyBalance {
+interface User {
+  id: number
+  username: string
   initial_capital: number
   current_cash: number
   frozen_cash: number
 }
 
-interface User {
-  id: number
-  username: string
-  initial_capital_usd: number
-  current_cash_usd: number
-  frozen_cash_usd: number
-  initial_capital_hkd: number
-  current_cash_hkd: number
-  frozen_cash_hkd: number
-  initial_capital_cny: number
-  current_cash_cny: number
-  frozen_cash_cny: number
-}
-
-interface Overview { 
+interface Overview {
   user: User
-  balances_by_currency: {
-    usd: CurrencyBalance
-    hkd: CurrencyBalance
-    cny: CurrencyBalance
-  }
-  total_assets_usd: number
-  positions_value_usd: number
+  total_assets: number
+  positions_value: number
 }
 interface Position { id: number; user_id: number; symbol: string; name: string; market: string; quantity: number; available_quantity: number; avg_cost: number }
 interface Order { id: number; order_no: string; symbol: string; name: string; market: string; side: string; order_type: string; price?: number; quantity: number; filled_quantity: number; status: string }
-interface Trade { id: number; order_id: number; user_id: number; symbol: string; name: string; market: string; side: string; price: number; quantity: number; commission: number; exchange_rate: number; trade_time: string }
+interface Trade { id: number; order_id: number; user_id: number; symbol: string; name: string; market: string; side: string; price: number; quantity: number; commission: number; trade_time: string }
 
 function App() {
   const [userId, setUserId] = useState<number | null>(null)
@@ -59,7 +41,7 @@ function App() {
     let ws = __WS_SINGLETON__
     const created = !ws || ws.readyState === WebSocket.CLOSING || ws.readyState === WebSocket.CLOSED
     if (created) {
-      ws = new WebSocket('ws://localhost:2314/ws')
+      ws = new WebSocket('ws://localhost:2611/ws')
       __WS_SINGLETON__ = ws
     }
     wsRef.current = ws!
@@ -118,26 +100,17 @@ function App() {
       <div className="flex-1 flex flex-col">
         <Header />
         <main className="flex-1 p-6 overflow-hidden">
-          <div className="flex items-center justify-between mb-6">
-            <h2 id="portfolio" className="text-xl font-semibold">Portfolio</h2>
-            <MarketStatus />
-          </div>
-
-          <div className="mb-6">
-            <MultiCurrencyBalance 
-              balances={overview.balances_by_currency}
-              totalAssetsUsd={overview.total_assets_usd}
-              positionsValueUsd={overview.positions_value_usd}
-            />
-          </div>
-          <h2 id="trading" className="text-xl font-semibold mb-6">Trading</h2>
-
-          <div className="flex gap-6 h-[calc(100vh-400px)]">
+          <Balance
+            user={overview.user}
+            totalAssets={overview.total_assets}
+            positionsValue={overview.positions_value}
+          />
+          <div className="flex gap-6 h-[calc(100vh-400px)] mt-4">
             {/* Trading Panel - Left Side */}
             <div className="flex-shrink-0">
-              <TradingPanel 
+              <TradingPanel
                 onPlace={placeOrder}
-                balances={overview.balances_by_currency}
+                user={overview.user}
               />
             </div>
 
@@ -149,16 +122,16 @@ function App() {
                   <TabsTrigger value="orders">Orders</TabsTrigger>
                   <TabsTrigger value="trades">Trades</TabsTrigger>
                 </TabsList>
-                
+
                 <div className="flex-1 overflow-hidden">
                   <TabsContent value="positions" className="h-full overflow-y-auto">
                     <PositionListWS positions={positions} />
                   </TabsContent>
-                  
+
                   <TabsContent value="orders" className="h-full overflow-y-auto">
                     <OrderBookWS orders={orders} />
                   </TabsContent>
-                  
+
                   <TabsContent value="trades" className="h-full overflow-y-auto">
                     <TradeHistoryWS trades={trades} />
                   </TabsContent>
@@ -232,7 +205,7 @@ function TradeHistoryWS({ trades }: { trades: Trade[] }) {
       <Table>
         <TableHeader>
           <TableRow>
-            <TableHead>Time</TableHead><TableHead>Order ID</TableHead><TableHead>Symbol</TableHead><TableHead>Side</TableHead><TableHead>Price</TableHead><TableHead>Qty</TableHead><TableHead>Commission</TableHead><TableHead>FX</TableHead>
+            <TableHead>Time</TableHead><TableHead>Order ID</TableHead><TableHead>Symbol</TableHead><TableHead>Side</TableHead><TableHead>Price</TableHead><TableHead>Qty</TableHead><TableHead>Commission</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -242,10 +215,9 @@ function TradeHistoryWS({ trades }: { trades: Trade[] }) {
               <TableCell>{t.order_id}</TableCell>
               <TableCell>{t.symbol}.{t.market}</TableCell>
               <TableCell>{t.side}</TableCell>
-              <TableCell>{t.price.toFixed(4)}</TableCell>
+              <TableCell>{t.price.toFixed(2)}</TableCell>
               <TableCell>{t.quantity}</TableCell>
-              <TableCell>{t.commission.toFixed(4)}</TableCell>
-              <TableCell>{t.exchange_rate.toFixed(4)}</TableCell>
+              <TableCell>{t.commission.toFixed(2)}</TableCell>
             </TableRow>
           ))}
         </TableBody>

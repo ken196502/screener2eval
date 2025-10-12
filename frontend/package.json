@@ -2,7 +2,7 @@
   "name": "my-frontend",
   "private": true,
   "scripts": {
-    "dev": "vite --port 2414",
+    "dev": "vite --port 2621",
     "build": "vite build",
     "preview": "vite preview"
   },

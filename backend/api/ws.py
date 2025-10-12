@@ -17,7 +17,7 @@ class ConnectionManager:
         self.active_connections: Dict[int, Set[WebSocket]] = {}
 
     async def connect(self, websocket: WebSocket):
-        await websocket.accept()
+        pass  # WebSocket is already accepted in the endpoint
 
     def register(self, user_id: int, websocket: WebSocket):
         self.active_connections.setdefault(user_id, set()).add(websocket)
@@ -54,47 +54,16 @@ async def _send_snapshot(db: Session, user_id: int):
     )
     positions_value = calc_positions_value(db, user_id)
     
-    # 构建多币种余额信息
-    balances_by_currency = {
-        "usd": {
-            "initial_capital": float(user.initial_capital_usd),
-            "current_cash": float(user.current_cash_usd),
-            "frozen_cash": float(user.frozen_cash_usd)
-        },
-        "hkd": {
-            "initial_capital": float(user.initial_capital_hkd),
-            "current_cash": float(user.current_cash_hkd),
-            "frozen_cash": float(user.frozen_cash_hkd)
-        },
-        "cny": {
-            "initial_capital": float(user.initial_capital_cny),
-            "current_cash": float(user.current_cash_cny),
-            "frozen_cash": float(user.frozen_cash_cny)
-        }
-    }
-    
-    # 计算总资产（折算为USD）- 暂时简化处理，后续可以加入汇率换算
-    total_cash_usd = (float(user.current_cash_usd) + 
-                     float(user.current_cash_hkd) / 7.8 +  # 简化汇率 HKD->USD
-                     float(user.current_cash_cny) / 7.2)   # 简化汇率 CNY->USD
-    
     overview = {
         "user": {
             "id": user.id,
             "username": user.username,
-            "initial_capital_usd": float(user.initial_capital_usd),
-            "current_cash_usd": float(user.current_cash_usd),
-            "frozen_cash_usd": float(user.frozen_cash_usd),
-            "initial_capital_hkd": float(user.initial_capital_hkd),
-            "current_cash_hkd": float(user.current_cash_hkd),
-            "frozen_cash_hkd": float(user.frozen_cash_hkd),
-            "initial_capital_cny": float(user.initial_capital_cny),
-            "current_cash_cny": float(user.current_cash_cny),
-            "frozen_cash_cny": float(user.frozen_cash_cny),
+            "initial_capital": float(user.initial_capital),
+            "current_cash": float(user.current_cash),
+            "frozen_cash": float(user.frozen_cash),
         },
-        "balances_by_currency": balances_by_currency,
-        "total_assets_usd": positions_value + total_cash_usd,
-        "positions_value_usd": positions_value,
+        "total_assets": positions_value + float(user.current_cash),
+        "positions_value": positions_value,
     }
     await manager.send_to_user(user_id, {
         "type": "snapshot",
@@ -141,7 +110,6 @@ async def _send_snapshot(db: Session, user_id: int):
                 "price": float(t.price),
                 "quantity": t.quantity,
                 "commission": float(t.commission),
-                "exchange_rate": float(t.exchange_rate) if t.exchange_rate is not None else 1.0,
                 "trade_time": str(t.trade_time),
             }
             for t in trades
@@ -150,7 +118,7 @@ async def _send_snapshot(db: Session, user_id: int):
 
 
 async def websocket_endpoint(websocket: WebSocket):
-    await manager.connect(websocket)
+    await websocket.accept()
     user_id: int | None = None
     try:
         while True:
@@ -163,9 +131,7 @@ async def websocket_endpoint(websocket: WebSocket):
                     user = get_or_create_user(
                         db, 
                         msg.get("username", "demo"),
-                        float(msg.get("initial_capital_usd", 100000)),
-                        float(msg.get("initial_capital_hkd", 780000)),
-                        float(msg.get("initial_capital_cny", 720000))
+                        float(msg.get("initial_capital", 100000))
                     )
                     user_id = user.id
                     manager.register(user_id, websocket)
@@ -224,7 +190,6 @@ async def websocket_endpoint(websocket: WebSocket):
                                     "price": float(t.price),
                                     "quantity": t.quantity,
                                     "commission": float(t.commission),
-                                    "exchange_rate": float(t.exchange_rate) if t.exchange_rate is not None else 1.0,
                                     "trade_time": str(t.trade_time),
                                 }
                                 for t in trades

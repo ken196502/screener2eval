@@ -1,11 +1,11 @@
 # Strategy Simulator (PNPM + UV)
 
-A fullstack demo for a simulated US/HK trading app. The runtime is WebSocket-only: the frontend communicates with the backend exclusively via a single WS endpoint.
+A fullstack demo for a simulated US Stocks trading app. The runtime is WebSocket-only: the frontend communicates with the backend exclusively via a single WS endpoint.
 
 ## Stack
 - Backend: FastAPI + Uvicorn, SQLAlchemy, SQLite (managed with UV)
 - Frontend: React + Vite + Tailwind + Shadcn UI (managed with pnpm)
-- Realtime: WebSocket at `ws://localhost:2314/ws`
+- Realtime: WebSocket at `ws://localhost:2611/ws`
 
 ## Project Structure
 - `backend/`: Python backend (WebSocket endpoint only)
@@ -28,8 +28,8 @@ Run both dev servers concurrently:
 pnpm run dev
 ```
 Then open the app at:
-- Frontend: http://localhost:2414
-- Backend WS: ws://localhost:2314/ws
+- Frontend: http://localhost:2621
+- Backend WS: ws://localhost:2611/ws
 
 ### Build
 ```bash
@@ -38,7 +38,7 @@ pnpm run build
 This builds the frontend for production. (The backend has no separate build step.)
 
 ## WebSocket Protocol
-The app is WS-only. On load, the client opens `ws://localhost:2314/ws` and sends a bootstrap message:
+The app is WS-only. On load, the client opens `ws://localhost:2611/ws` and sends a bootstrap message:
 
 Client → Server
 ```json
@@ -73,8 +73,8 @@ Selected server messages:
 - No HTTP fetch/axios calls; Vite proxy to `/api` has been removed.
 
 ## Ports
-- Backend WS: `ws://localhost:2314/ws`
-- Frontend: `http://localhost:2414`
+- Backend WS: `ws://localhost:2611/ws`
+- Frontend: `http://localhost:2621`
 
 ## Troubleshooting
 - Multiple connect/disconnect in logs during development: React StrictMode mounts twice; we use a WS singleton to prevent duplicate connections. If the server closes the socket, the singleton resets and the client will establish a new connection on next interaction.

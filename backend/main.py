@@ -5,11 +5,11 @@ from sqlalchemy.orm import Session
 from database.connection import engine, Base, SessionLocal
 from database.models import TradingConfig, User
 from config.settings import DEFAULT_TRADING_CONFIGS
-app = FastAPI(title="Simulated US/HK Trading API")
+app = FastAPI(title="Simulated US Stocks Trading API")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:2414"],
+    allow_origins=["http://localhost:2621"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -42,18 +42,9 @@ def on_startup():
             demo = User(
                 version="v1",
                 username="demo",
-                # USD fields
-                initial_capital_usd=100000.0,
-                current_cash_usd=100000.0,
-                frozen_cash_usd=0.0,
-                # HKD fields
-                initial_capital_hkd=780000.0,
-                current_cash_hkd=780000.0,
-                frozen_cash_hkd=0.0,
-                # CNY fields
-                initial_capital_cny=720000.0,
-                current_cash_cny=720000.0,
-                frozen_cash_cny=0.0,
+                initial_capital=100000.0,
+                current_cash=100000.0,
+                frozen_cash=0.0,
             )
             db.add(demo)
             db.commit()
@@ -61,6 +52,7 @@ def on_startup():
         db.close()
 
 
-# WS-only runtime (HTTP routers not registered)
+# WebSocket endpoint
 from api.ws import websocket_endpoint
-app.add_api_websocket_route("/ws", websocket_endpoint)
+
+app.websocket("/ws")(websocket_endpoint)

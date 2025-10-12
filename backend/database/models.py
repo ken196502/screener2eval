@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, DECIMAL, TIMESTAMP, ForeignKey, UniqueConstraint
+from sqlalchemy import Column, Integer, String, DECIMAL, TIMESTAMP, ForeignKey, UniqueConstraint, Float
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 
@@ -12,20 +12,10 @@ class User(Base):
     version = Column(String(100), nullable=False, default="v1")
     username = Column(String(50), unique=True, nullable=False)
     
-    # USD currency fields (美股市场)
-    initial_capital_usd = Column(DECIMAL(18, 2), nullable=False, default=100000.00)
-    current_cash_usd = Column(DECIMAL(18, 2), nullable=False, default=100000.00)
-    frozen_cash_usd = Column(DECIMAL(18, 2), nullable=False, default=0.00)
-    
-    # HKD currency fields (港股市场)
-    initial_capital_hkd = Column(DECIMAL(18, 2), nullable=False, default=780000.00)
-    current_cash_hkd = Column(DECIMAL(18, 2), nullable=False, default=780000.00)
-    frozen_cash_hkd = Column(DECIMAL(18, 2), nullable=False, default=0.00)
-    
-    # CNY currency fields (A股市场)
-    initial_capital_cny = Column(DECIMAL(18, 2), nullable=False, default=720000.00)
-    current_cash_cny = Column(DECIMAL(18, 2), nullable=False, default=720000.00)
-    frozen_cash_cny = Column(DECIMAL(18, 2), nullable=False, default=0.00)
+    # USD currency fields (US market only)
+    initial_capital = Column(DECIMAL(18, 2), nullable=False, default=100000.00)
+    current_cash = Column(DECIMAL(18, 2), nullable=False, default=100000.00)
+    frozen_cash = Column(DECIMAL(18, 2), nullable=False, default=0.00)
     
     created_at = Column(TIMESTAMP, server_default=func.current_timestamp())
     updated_at = Column(
@@ -94,7 +84,6 @@ class Trade(Base):
     price = Column(DECIMAL(18, 6), nullable=False)
     quantity = Column(Integer, nullable=False)
     commission = Column(DECIMAL(18, 6), nullable=False, default=0)
-    exchange_rate = Column(DECIMAL(10, 6), default=1.0)
     trade_time = Column(TIMESTAMP, server_default=func.current_timestamp())
 
     order = relationship("Order", back_populates="trades")
@@ -105,30 +94,22 @@ class TradingConfig(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     version = Column(String(100), nullable=False, default="v1")
-    market = Column(String(10), unique=True, nullable=False)
-    min_commission = Column(DECIMAL(10, 2), nullable=False)
-    commission_rate = Column(DECIMAL(8, 6), nullable=False)
-    exchange_rate = Column(DECIMAL(10, 6), default=1.0)
-    min_order_quantity = Column(Integer, default=1)
-    lot_size = Column(Integer, default=1)
+    market = Column(String(10), nullable=False)
+    min_commission = Column(Float, nullable=False)
+    commission_rate = Column(Float, nullable=False)
+    exchange_rate = Column(Float, nullable=False, default=1.0)
+    min_order_quantity = Column(Integer, nullable=False, default=1)
+    lot_size = Column(Integer, nullable=False, default=1)
+    created_at = Column(TIMESTAMP, server_default=func.current_timestamp())
     updated_at = Column(
         TIMESTAMP, server_default=func.current_timestamp(), onupdate=func.current_timestamp()
     )
 
+    __table_args__ = (UniqueConstraint('market', 'version'),)
 
-class ExchangeRate(Base):
-    __tablename__ = "exchange_rates"
 
-    id = Column(Integer, primary_key=True, index=True)
-    version = Column(String(100), nullable=False, default="v1")
-    from_currency = Column(String(3), nullable=False)  # USD, HKD, CNY
-    to_currency = Column(String(3), nullable=False)    # USD, HKD, CNY
-    rate = Column(DECIMAL(10, 6), nullable=False)      # 汇率
-    updated_at = Column(
-        TIMESTAMP, server_default=func.current_timestamp(), onupdate=func.current_timestamp()
-    )
-
-    # 添加唯一约束，确保每对货币只有一个汇率记录
-    __table_args__ = (
-        UniqueConstraint('from_currency', 'to_currency', name='_currency_pair_uc'),
-    )
+# US market trading configuration constants
+US_MIN_COMMISSION = 1.0  # $1 minimum commission
+US_COMMISSION_RATE = 0.005  # 0.5% commission rate
+US_MIN_ORDER_QUANTITY = 1
+US_LOT_SIZE = 1

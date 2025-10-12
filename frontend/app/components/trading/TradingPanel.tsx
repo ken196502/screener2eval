@@ -3,41 +3,26 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select'
 
-interface CurrencyBalance {
+interface User {
   current_cash: number
   frozen_cash: number
 }
 
 interface TradingPanelProps {
   onPlace: (payload: any) => void
-  balances?: {
-    usd: CurrencyBalance
-    hkd: CurrencyBalance
-    cny: CurrencyBalance
-  }
+  user?: User
 }
 
-export default function TradingPanel({ onPlace, balances }: TradingPanelProps) {
-  const [symbol, setSymbol] = useState('00005')
-  const [name, setName] = useState('HSBC Holdings')
-  const [market, setMarket] = useState<'US' | 'HK' | 'CN'>('HK')
+export default function TradingPanel({ onPlace, user }: TradingPanelProps) {
+  const [symbol, setSymbol] = useState('AAPL')
+  const [name, setName] = useState('Apple Inc.')
+  const [market] = useState<'US'>('US')
   const [orderType, setOrderType] = useState<'MARKET' | 'LIMIT'>('LIMIT')
-  const [price, setPrice] = useState<number>(2)
+  const [price, setPrice] = useState<number>(190)
   const [quantity, setQuantity] = useState<number>(2)
 
-  // 市场到币种的映射
-  const marketToCurrency = {
-    'US': 'usd',
-    'HK': 'hkd', 
-    'CN': 'cny'
-  } as const
-
-  // 币种符号映射
-  const currencySymbols = {
-    'usd': '$',
-    'hkd': 'HK$',
-    'cny': '¥'
-  } as const
+  // US market only - USD currency
+  const currencySymbol = '$'
 
   const adjustPrice = (delta: number) => {
     const newPrice = Math.max(0, price + delta)
@@ -56,20 +41,9 @@ export default function TradingPanel({ onPlace, balances }: TradingPanelProps) {
     setQuantity(Math.max(0, quantity + delta))
   }
 
-  // 获取当前市场对应的币种余额
-  const getCurrentBalance = () => {
-    if (!balances) return null
-    const currency = marketToCurrency[market]
-    return balances[currency]
-  }
-
-  const currentBalance = getCurrentBalance()
-  const currentCurrency = marketToCurrency[market]
-  const currencySymbol = currencySymbols[currentCurrency]
-
   const amount = price * quantity
-  const cashAvailable = currentBalance?.current_cash || 0
-  const frozenCash = currentBalance?.frozen_cash || 0
+  const cashAvailable = user?.current_cash || 0
+  const frozenCash = user?.frozen_cash || 0
   const positionAvailable = 0 // TODO: Calculate from position data
   const maxBuyable = Math.floor(cashAvailable / price) || 0
 
@@ -81,8 +55,7 @@ export default function TradingPanel({ onPlace, balances }: TradingPanelProps) {
       side: 'BUY',
       order_type: orderType,
       price: orderType === 'LIMIT' ? price : undefined,
-      quantity,
-      currency: currentCurrency
+      quantity
     })
   }
 
@@ -94,29 +67,13 @@ export default function TradingPanel({ onPlace, balances }: TradingPanelProps) {
       side: 'SELL',
       order_type: orderType,
       price: orderType === 'LIMIT' ? price : undefined,
-      quantity,
-      currency: currentCurrency
+      quantity
     })
   }
 
   return (
     <div className="space-y-4 w-[320px] flex-shrink-0">
-      {/* 市场选择 */}
-      <div className="space-y-2">
-        <label className="text-xs">Market</label>
-        <Select value={market} onValueChange={(v) => setMarket(v as 'US' | 'HK' | 'CN')}>
-          <SelectTrigger className="bg-input text-xs h-8">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="US">US Stock ({currencySymbols.usd})</SelectItem>
-            <SelectItem value="HK">HK Stock ({currencySymbols.hkd})</SelectItem>
-            <SelectItem value="CN">A-Share ({currencySymbols.cny})</SelectItem>
-          </SelectContent>
-        </Select>
-      </div>
-
-      {/* 代码 */}
+      {/* Symbol */}
       <div className="space-y-2">
         <label className="text-xs">Code</label>
         <div className="relative">

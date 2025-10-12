@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-This is a full-stack simulated trading application with a WebSocket-only architecture. It simulates US/HK stock trading with real-time order execution and portfolio management. The system uses a single WebSocket endpoint for all communication between frontend and backend.
+This is a full-stack simulated trading application with a WebSocket-only architecture. It simulates US Stocks stock trading with real-time order execution and portfolio management. The system uses a single WebSocket endpoint for all communication between frontend and backend.
 
 ## Architecture
 
@@ -46,7 +46,7 @@ pnpm run install:all
 ```bash
 pnpm run dev
 ```
-This runs both frontend (http://localhost:2414) and backend (ws://localhost:2314/ws) concurrently.
+This runs both frontend (http://localhost:2621) and backend (ws://localhost:2611/ws) concurrently.
 
 ### Build
 ```bash
@@ -58,7 +58,7 @@ Builds the frontend for production. The backend has no separate build step.
 ```bash
 cd backend
 uv sync --quiet          # Install dependencies
-uv run uvicorn main:app --reload --port 2314  # Run dev server
+uv run uvicorn main:app --reload --port 2611  # Run dev server
 uv run pytest           # Run tests
 uv run black            # Format code
 uv run ruff             # Lint code
@@ -67,14 +67,14 @@ uv run ruff             # Lint code
 ### Frontend Development Commands
 ```bash
 cd frontend
-pnpm dev                # Run dev server (port 2414)
+pnpm dev                # Run dev server (port 2621)
 pnpm build              # Build for production
 pnpm preview            # Preview production build
 ```
 
 ## WebSocket Protocol
 
-The application uses a single WebSocket endpoint (`ws://localhost:2314/ws`) for all communication.
+The application uses a single WebSocket endpoint (`ws://localhost:2611/ws`) for all communication.
 
 ### Client Messages
 - `bootstrap` - Create/load user and initialize session
@@ -98,7 +98,7 @@ Core models:
 - `Position`: Holdings for each user/symbol
 - `Order`: Pending and executed orders
 - `Trade`: Executed trade records
-- `TradingConfig`: Market-specific configuration (US/HK)
+- `TradingConfig`: Market-specific configuration (US Stocks)
 
 Database file: `demo_trading.db` (delete to reset demo data)
 
@@ -119,4 +119,4 @@ Database file: `demo_trading.db` (delete to reset demo data)
 
 - **Multiple connect/disconnect logs**: React StrictMode mounts twice, but WebSocket singleton prevents duplicate connections
 - **Database reset**: Delete `demo_trading.db` file to reset demo data
-- **Connection issues**: Ensure backend is running on port 2314 before starting frontend
+- **Connection issues**: Ensure backend is running on port 2611 before starting frontend
