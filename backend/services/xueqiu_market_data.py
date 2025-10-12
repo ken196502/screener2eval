@@ -21,39 +21,35 @@ class XueqiuMarketData:
     
     def _setup_session(self):
         """设置请求会话的cookies和headers"""
-        # 雪球API所需的cookies
         cookies = {
-            'cookiesu': '631739031524496',
-            'device_id': '5981896b9cd1c172963c2b12f5f5c12f',
-            's': 'bl16e3t3ba',
-            'bid': '4b00aff9a838774878b7cd7b32843ae2_m810ojcu',
-            'Hm_lvt_1db88642e346389874251b5a1eded6e3': '1758940715,1759634818,1760109127,1760244640',
-            'HMACCOUNT': 'D3CD536C9DD13D6A',
-            'remember': '1',
-            'xq_a_token': '32cec461a3a0575e573092fdada6d9a0f8b0d0a5',
-            'xqat': '32cec461a3a0575e573092fdada6d9a0f8b0d0a5',
-            'xq_id_token': 'eyJ0eXAiOiJKV1QiLCJhbGciOiJSUzI1NiJ9.eyJ1aWQiOjQzMDY0MTEzMjksImlzcyI6InVjIiwiZXhwIjoxNzYyNTYzNDU3LCJjdG0iOjE3NjAyNDQ2NzI4OTMsImNpZCI6ImQ5ZDBuNEFadXAifQ.L53hRU3vvtzbR2VIlX9ENIhW0TzPqensRuiIXTUc3A8Yf8l02lPc8N_iIomU5KuYOJ215vnFwuR11DWIrtMioKTT_6E9bTJ0vVK0OTPKeGT6_fyeJ19Muza2VgCMA1h_9T2Dhzld5eU75fUoSBCjbE9I72Em3EO5CUysWFXydbysVdL4mjdHFnE3EvUjTnnh0q1RI7cvMhh1kibEt-ZIMiKJ0-pqC2jwbSxGxzJmGR1DpAUlF3-cxiAO7H5DAulyoIFYxPoFdn_2zDFlXwwPSGRWO106CpJZk33l7i0AMB99tmZxcMoABxkCcxKSrqU_H5aVzGAhzfhmW-dN9qAuAQ',
-            'xq_r_token': 'e22cb29d68e55974c31f4cb45b3e26f633aed15b',
-            'xq_is_login': '1',
-            'u': '4306411329',
+            'xq_a_token': 'b9c7e702181cba3ed732d5019efe2dfe2fb054b0',
+            'xqat': 'b9c7e702181cba3ed732d5019efe2dfe2fb054b0',
+            'xq_r_token': 'c1edaf05e1c6fdf8122671eced8049e8df8a4290',
+            'xq_id_token': 'eyJ0eXAiOiJKV1QiLCJhbGciOiJSUzI1NiJ9.eyJ1aWQiOi0xLCJpc3MiOiJ1YyIsImV4cCI6MTc2MTYxNDEwNywiY3RtIjoxNzYwMjc4Mjc3NjgwLCJjaWQiOiJkOWQwbjRBWnVwIn0.ctdlOy8DAkZ7XZuR5lIOuyz2L3J2qWk8AkeORHelnGtyuxK82V18vXL98_ku0qcRVvVFuCIMlKu0mI0d4FmnpfFenNYXhSryqlrrC_KUOg3ddXcQRejPa8yj62K6HLwhx7tIum5AKSoLFfRt2rfcfUak1uCFZKEme9BciXxqmOr2nDvqp_tPKYf6UHkRJSayA7ysL2THSIQwOplP1VLNMU2G-xeGJfoJJmd0cwZlRpFjOEqNmat3BbQu8KQINL12l9g4jQv34bhY1px00Z4aHc7EiQuzKe6XWok7odN-nxPD4ckCjzJFaKTfPCfhBNohrvNLm7HCAu7lgl20hNNHyw',
+            'cookiesu': '561760278307018',
+            'u': '561760278307018',
+            'device_id': '1f31ebf95cb86453a776ceb4e653939b',
+            'Hm_lvt_1db88642e346389874251b5a1eded6e3': '1760278309',
+            'HMACCOUNT': '1E965996591747FF',
             'is_overseas': '0',
-            'Hm_lpvt_1db88642e346389874251b5a1eded6e3': '1760244687',
+            'Hm_lpvt_1db88642e346389874251b5a1eded6e3': '1760278315',
+            'ssxmod_itna': '1-CqAxgD0DRDBDcDjxx4qew2DYwxKqQwerPGHDyxWKG7DupxjKid3DUB=Hgp=F=YEQ00TP4z7DOeePMD0HP5wtx0=7Df40WwGrGx_1iKG0hu3=VOGn7Pd=0i145dxSOO2pY83I0S9BLBIGzycPxwDiTT0xDoPPDn14Dj=4qwDiiDBeD5xDTDWeDGDD3W4DCw/BoD0_vHUgvPz4wTlAvDYpWOC4DREdDSj8EvSOhaBoDipdDXE3ar6RAv0xDExGOrsbKz4GaSUbnY5PDEjeIYwQDvPl_CQTAm8SoGN_5y=VY1c0Y0hTPQ7DxYD44ED/ghgxheQoijDeeKPCebnPYt__ooNYoM=4rCeR1UnPpc1rPBKciIx7vlaxeDKaIbmjwzjDglNrle5GxYiGxAD5AmMODxD',
+            'ssxmod_itna2': '1-CqAxgD0DRDBDcDjxx4qew2DYwxKqQwerPGHDyxWKG7DupxjKid3DUB=Hgp=F=YEQ00TP4z7DOeePwDDcYNeKrD4qDLA0h4fNx0vxN8r7ahv6hharLw6vrdMdmxLoiZC7NmNTNLqctA_Tdq9f4nlYLM9442j3_6z_3M_wGfjTh6C0DYc_Gdu4KVinhftMLi=w56YM4SfbxPf7iPpr2_9bhgGEAW61DSlYTe5p0=1mt8oMnVU6Q=PO=njq90jwhvcmLl4kbL6wuEE_hfVU903nRXN7i=2g_xhFddL7CtZutmcmXvM=Scl7sBMHZD7U8TaimQ8wlbuulWXQn8KcC0Ij3PzKaEBWUAThWaqA4F35hGcDQTx/u4jnNlaEjWItwehiHbYFARD008lqQYoaQGAf9OSPAiGCUIfneeWuMeb_UFdZpFGpkmPfjOwGhx4fqwfYjbpz9CAppmhajbP/E5aD6_SDR4xtm8fwsfD6_oQGDUK9qprXUSD1gCWGxfIOX9iEE1xBthhxgeYzfLBeGnBbpQAYwjmBiVRmowv3ej9CPdKQmAp9lh_Hr52L7GbWAxGD8fGq4qLw58G6jE6Rb87RZs91N_g0/ZjqwrCn2aYhIqiYwiDyR5RsB_4rfe6OOODiC5aUUFR/DC0YKx43VgN4NlhuoD4e2B=Xgh_biGDD',
         }
-        
-        # 请求头
+
         headers = {
             'accept': 'application/json, text/plain, */*',
-            'accept-language': 'zh-CN,zh-TW;q=0.9,zh;q=0.8,en-US;q=0.7,en;q=0.6,ja;q=0.5',
+            'accept-language': 'en-US,en;q=0.9',
             'origin': 'https://xueqiu.com',
             'priority': 'u=1, i',
-            'referer': 'https://xueqiu.com/',
-            'sec-ch-ua': '"Google Chrome";v="141", "Not?A_Brand";v="8", "Chromium";v="141"',
+            'referer': 'https://xueqiu.com/S/MSFT',
+            'sec-ch-ua': '"Microsoft Edge";v="141", "Not?A_Brand";v="8", "Chromium";v="141"',
             'sec-ch-ua-mobile': '?0',
             'sec-ch-ua-platform': '"macOS"',
             'sec-fetch-dest': 'empty',
             'sec-fetch-mode': 'cors',
             'sec-fetch-site': 'same-site',
-            'user-agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36',
+            'user-agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36 Edg/141.0.0.0',
         }
         
         # 设置会话的cookies和headers
