@@ -57,9 +57,18 @@ def create_order(db: Session, user: User, symbol: str, name: str, market: str,
     if order_type == "LIMIT" and (price is None or price <= 0):
         raise ValueError("限价单必须指定有效的委托价格")
     
-    # 获取当前市价用于资金检查
-    current_market_price = get_last_price(symbol, market)
-    check_price = Decimal(str(price if order_type == "LIMIT" else current_market_price))
+    # 获取当前市价用于资金检查（仅在有cookie配置时）
+    current_market_price = None
+    if order_type == "MARKET":
+        # 市价单必须获取当前价格
+        from .market_data import _check_xueqiu_cookie_available
+        if not _check_xueqiu_cookie_available():
+            raise ValueError("市价单需要实时行情数据，请先在设置中配置雪球Cookie")
+        current_market_price = get_last_price(symbol, market)
+        check_price = Decimal(str(current_market_price))
+    else:
+        # 限价单使用委托价格进行资金检查
+        check_price = Decimal(str(price))
     
     # 预先检查资金和持仓
     if side == "BUY":
@@ -123,6 +132,12 @@ def check_and_execute_order(db: Session, order: Order) -> bool:
         是否成交
     """
     if order.status != "PENDING":
+        return False
+    
+    # 检查是否有cookie配置，没有则跳过订单检查
+    from .market_data import _check_xueqiu_cookie_available
+    if not _check_xueqiu_cookie_available():
+        logger.debug(f"跳过订单 {order.order_no} 检查：雪球cookie未配置")
         return False
     
     try:
@@ -319,13 +334,13 @@ def get_pending_orders(db: Session, user_id: Optional[int] = None) -> list[Order
 def _release_frozen_on_cancel(user: User, order: Order):
     """取消订单时释放冻结（仅BUY）"""
     if order.side == "BUY":
-        # 保守释放：按委托价格（或0）估算冻结金额
-        from .market_data import get_last_price
-        try:
-            market_price = get_last_price(order.symbol, order.market)
-        except Exception:
-            market_price = float(order.price or 0.0)
-        ref_price = min(float(order.price) if order.price else float(market_price), float(market_price) if market_price else float(order.price or 0.0)) or float(order.price or market_price or 0.0)
+        # 保守释放：按委托价格估算冻结金额，避免获取市价
+        ref_price = float(order.price or 0.0)
+        if ref_price <= 0:
+            # 如果没有委托价格（理论上不应该发生），使用一个保守的估计
+            logger.warning(f"订单 {order.order_no} 没有委托价格，无法准确释放冻结资金")
+            ref_price = 100.0  # 使用一个默认值
+        
         notional = Decimal(str(ref_price)) * Decimal(order.quantity)
         commission = _calc_commission(notional)
         release_amt = notional + commission

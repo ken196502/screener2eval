@@ -2,7 +2,7 @@
 
 A full‑stack demo of a simulated US stock trading application. The app is realtime-first: the frontend talks to the backend primarily via a single WebSocket endpoint. A few HTTP endpoints are available for management actions (e.g., cancel an order).
 
-Note: The frontend currently opens a WebSocket to ws://localhost: 2621/ws and calls HTTP at http://127.0.0.1: 2621 by default. The monorepo scripts run the backend on port 2611 and the frontend on 2621. You can either:
+Note: The frontend currently opens a WebSocket to ws://localhost: 2621/ws and calls HTTP at http://127.0.0.1:2611 by default. The monorepo scripts run the backend on port 2611 and the frontend on 2621. You can either:
 - change the frontend URLs to 2611, or
 - start the backend on  2621 instead.
 
@@ -221,7 +221,7 @@ To reset demo data, remove the SQLite file (data.db) and restart the backend.
 
 To switch the frontend to use port 2611, edit frontend/app/main.tsx:
 - Replace ws://localhost: 2621/ws with ws://localhost:2611/ws
-- Replace API_BASE http://127.0.0.1: 2621 with http://127.0.0.1:2611
+- Replace API_BASE http://127.0.0.1:2611 with http://127.0.0.1:2611
 
 ## Troubleshooting
 - Port mismatch: if you see connection errors, ensure the frontend WS URL and API_BASE match the backend port.

@@ -1,0 +1,131 @@
+import React, { useState, useEffect } from 'react'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { getXueqiuCookie, saveXueqiuCookie } from '@/lib/api'
+
+interface SettingsDialogProps {
+  open: boolean
+  onOpenChange: (open: boolean) => void
+  isRequired?: boolean
+}
+
+export default function SettingsDialog({ open, onOpenChange, isRequired = false }: SettingsDialogProps) {
+  const [cookieValue, setCookieValue] = useState('')
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState('')
+
+  useEffect(() => {
+    if (open) {
+      loadCurrentCookie()
+    }
+  }, [open])
+
+  const loadCurrentCookie = async () => {
+    try {
+      const data = await getXueqiuCookie()
+      if (data.has_cookie && data.value) {
+        setCookieValue(data.value)
+      }
+    } catch (err) {
+      console.error('Failed to load cookie:', err)
+      // 如果无法加载现有配置，继续允许用户输入新配置
+    }
+  }
+
+  const handleSave = async () => {
+    if (!cookieValue.trim()) {
+      setError('请输入雪球Cookie字符串')
+      return
+    }
+
+    setLoading(true)
+    setError('')
+
+    try {
+      const data = await saveXueqiuCookie(cookieValue.trim())
+      if (data.success) {
+        onOpenChange(false)
+        setCookieValue('')
+        setError('')
+      } else {
+        setError('保存失败，请重试')
+      }
+    } catch (err) {
+      setError('保存失败，请检查网络连接')
+      console.error('Save error:', err)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleCancel = () => {
+    if (isRequired) {
+      // 如果是必需配置，不允许直接关闭
+      return
+    }
+    setCookieValue('')
+    setError('')
+    onOpenChange(false)
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={isRequired ? undefined : onOpenChange}>
+      <DialogContent className="sm:max-w-[600px]">
+        <DialogHeader>
+          <DialogTitle>雪球Cookie配置</DialogTitle>
+          <DialogDescription>
+            {isRequired 
+              ? '首次使用需要配置雪球Cookie以获取市场数据。请从浏览器复制完整的Cookie字符串。' 
+              : '更新雪球Cookie配置以确保市场数据正常获取。'}
+          </DialogDescription>
+        </DialogHeader>
+        
+        <div className="space-y-4 py-4">
+          <div className="space-y-2">
+            <label htmlFor="cookie" className="text-sm font-medium">
+              Cookie字符串 *
+            </label>
+            <textarea
+              id="cookie"
+              value={cookieValue}
+              onChange={(e) => {
+                setCookieValue(e.target.value)
+                setError('')
+              }}
+              placeholder="请粘贴从浏览器开发者工具中复制的雪球Cookie字符串..."
+              className="min-h-[100px] w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+            />
+            <p className="text-xs text-muted-foreground">
+              如何获取: 1. 访问 xueqiu.com 并登录 2. 按F12打开开发者工具 3. 在Network标签页中找到任意API请求 4. 复制请求头中的完整Cookie值
+            </p>
+          </div>
+          
+          {error && (
+            <div className="text-sm text-red-600 bg-red-50 p-2 rounded">
+              {error}
+            </div>
+          )}
+        </div>
+
+        <DialogFooter>
+          {!isRequired && (
+            <Button variant="outline" onClick={handleCancel}>
+              取消
+            </Button>
+          )}
+          <Button onClick={handleSave} disabled={loading}>
+            {loading ? '保存中...' : '保存'}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  )
+}

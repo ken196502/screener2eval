@@ -11,6 +11,9 @@ import logging
 
 logger = logging.getLogger(__name__)
 
+# 全局cookie配置变量
+_xueqiu_cookie_string: Optional[str] = None
+
 
 class XueqiuMarketData:
     """雪球行情数据服务类"""
@@ -21,7 +24,15 @@ class XueqiuMarketData:
     
     def _setup_session(self):
         """设置请求会话的cookies和headers"""
-        cookies = {
+        # 尝试从全局变量获取cookie配置
+        cookie_string = self._get_cookie_from_global()
+        
+        if cookie_string:
+            # 解析cookie字符串
+            cookies = self._parse_cookie_string(cookie_string)
+        else:
+            # 使用默认的cookie（原来的硬编码值）
+            cookies = {
             'xq_a_token': 'b9c7e702181cba3ed732d5019efe2dfe2fb054b0',
             'xqat': 'b9c7e702181cba3ed732d5019efe2dfe2fb054b0',
             'xq_r_token': 'c1edaf05e1c6fdf8122671eced8049e8df8a4290',
@@ -56,6 +67,51 @@ class XueqiuMarketData:
         self.session.cookies.update(cookies)
         self.session.headers.update(headers)
     
+    def _get_cookie_from_global(self):
+        """从全局变量获取cookie配置"""
+        global _xueqiu_cookie_string
+        return _xueqiu_cookie_string
+    
+    def _parse_cookie_string(self, cookie_string: str) -> dict:
+        """解析cookie字符串为字典"""
+        cookies = {}
+        try:
+            # 处理不同格式的cookie字符串
+            if '; ' in cookie_string:
+                # 格式: "key1=value1; key2=value2"
+                for cookie in cookie_string.split('; '):
+                    if '=' in cookie:
+                        key, value = cookie.split('=', 1)
+                        cookies[key.strip()] = value.strip()
+            elif '\n' in cookie_string:
+                # 格式: 每行一个cookie
+                for line in cookie_string.strip().split('\n'):
+                    line = line.strip()
+                    if '=' in line:
+                        key, value = line.split('=', 1)
+                        cookies[key.strip()] = value.strip()
+            else:
+                # 单个cookie
+                if '=' in cookie_string:
+                    key, value = cookie_string.split('=', 1)
+                    cookies[key.strip()] = value.strip()
+        except Exception as e:
+            logger.error(f"解析cookie字符串失败: {e}")
+        
+        return cookies
+    
+    def update_cookies(self, cookie_string: str):
+        """更新会话的cookies"""
+        try:
+            new_cookies = self._parse_cookie_string(cookie_string)
+            if new_cookies:
+                self.session.cookies.update(new_cookies)
+                logger.info("雪球cookie已更新")
+            else:
+                logger.warning("解析cookie字符串为空")
+        except Exception as e:
+            logger.error(f"更新cookie失败: {e}")
+    
     def get_kline_data(self, symbol: str, period: str = '1m', count: int = 100) -> Optional[Dict[str, Any]]:
         """
         获取K线数据
@@ -74,13 +130,20 @@ class XueqiuMarketData:
             
             # 构建请求URL
             url = 'https://stock.xueqiu.com/v5/stock/chart/kline.json'
+            # 修正period参数 - 雪球API使用的格式
+            api_period = period
+            if period == '1d':
+                api_period = 'day'
+            elif period == '1m':
+                api_period = 'minute'
+            
             params = {
                 'symbol': symbol,
                 'begin': current_timestamp,
-                'period': period,
+                'period': api_period,
                 'type': 'before',
                 'count': -abs(count),  # 使用负数获取最新数据
-                'indicator': 'kline,pe,pb,ps,pcf,market_capital,agt,ggt,balance'
+                'indicator': 'kline'  # 简化indicator参数
             }
             
             response = self.session.get(url, params=params, timeout=10)
@@ -96,6 +159,13 @@ class XueqiuMarketData:
                 
         except requests.exceptions.RequestException as e:
             logger.error(f"请求雪球API失败: {e}")
+            if hasattr(e, 'response') and e.response is not None:
+                try:
+                    error_data = e.response.json()
+                    if error_data.get('error_code') == '400016':
+                        logger.error("雪球API返回400016错误，可能是cookie无效或过期")
+                except:
+                    pass
             return None
         except Exception as e:
             logger.error(f"解析雪球API数据失败: {e}")
@@ -111,25 +181,51 @@ class XueqiuMarketData:
         Returns:
             最新价格，失败返回None
         """
-        kline_data = self.get_kline_data(symbol, period='1m', count=1)
+        # 优先尝试股票信息API获取实时价格
+        try:
+            url = 'https://stock.xueqiu.com/v5/stock/quote.json'
+            params = {'symbol': symbol, 'extend': 'detail'}
+            response = self.session.get(url, params=params, timeout=10)
+            response.raise_for_status()
+            
+            data = response.json()
+            if 'data' in data and 'quote' in data['data']:
+                current_price = data['data']['quote'].get('current')
+                if current_price and float(current_price) > 0:
+                    logger.info(f"从雪球股票信息API获取 {symbol} 价格: ${current_price}")
+                    return float(current_price)
+        except Exception as e:
+            logger.warning(f"股票信息API获取 {symbol} 价格失败: {e}")
+        
+        # 备用方案：尝试K线数据
+        kline_data = self.get_kline_data(symbol, period='day', count=1)
         
         if not kline_data or 'data' not in kline_data:
+            logger.warning(f"无法获取 {symbol} 的日线K线数据")
             return None
         
         data = kline_data['data']
-        if not data.get('item') or len(data['item']) == 0:
+        
+        # 检查数据结构
+        items = data.get('item', [])
+        if not items or len(items) == 0:
+            logger.warning(f"{symbol} 返回空数据，可能市场已关闭或symbol不正确")
             return None
         
         # 获取最新的一条数据
-        latest_item = data['item'][0]
+        latest_item = items[0]
         
         # 根据column找到close价格的索引
         columns = data.get('column', [])
         if 'close' in columns:
             close_index = columns.index('close')
             if len(latest_item) > close_index:
-                return float(latest_item[close_index])
+                price = latest_item[close_index]
+                if price and float(price) > 0:
+                    logger.info(f"从雪球K线API获取 {symbol} 价格: ${price}")
+                    return float(price)
         
+        logger.error(f"无法从 {symbol} 数据中提取有效价格")
         return None
     
     def parse_kline_data(self, raw_data: Dict[str, Any]) -> List[Dict[str, Any]]:
@@ -257,3 +353,44 @@ def get_kline_data_from_xueqiu(symbol: str, period: str = '1m', count: int = 100
         raise Exception(f"解析 {symbol} 的K线数据失败")
     
     return kline_data
+
+
+def set_xueqiu_cookie(cookie_string: str):
+    """
+    设置雪球cookie全局变量
+    
+    Args:
+        cookie_string: 新的cookie字符串
+    """
+    global _xueqiu_cookie_string
+    _xueqiu_cookie_string = cookie_string.strip() if cookie_string else None
+    logger.info(f"雪球cookie已更新，长度: {len(_xueqiu_cookie_string) if _xueqiu_cookie_string else 0}")
+
+
+def get_xueqiu_cookie() -> Optional[str]:
+    """
+    获取当前雪球cookie配置
+    
+    Returns:
+        当前的cookie字符串，如果未设置则返回None
+    """
+    global _xueqiu_cookie_string
+    return _xueqiu_cookie_string
+
+
+def update_xueqiu_cookie(cookie_string: str):
+    """
+    更新雪球客户端的cookie配置
+    
+    Args:
+        cookie_string: 新的cookie字符串
+    """
+    global xueqiu_client
+    
+    # 设置全局变量
+    set_xueqiu_cookie(cookie_string)
+    
+    # 重新设置客户端会话
+    xueqiu_client._setup_session()
+    
+    logger.info(f"雪球客户端cookie已更新并重新初始化")

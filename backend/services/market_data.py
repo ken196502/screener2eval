@@ -16,6 +16,15 @@ SYMBOL_MAPPING = {
 }
 
 
+def _check_xueqiu_cookie_available() -> bool:
+    """检查雪球cookie是否可用"""
+    try:
+        from services.xueqiu_market_data import _xueqiu_cookie_string
+        return _xueqiu_cookie_string is not None and _xueqiu_cookie_string.strip() != ""
+    except Exception:
+        return False
+
+
 def get_last_price(symbol: str, market: str) -> float:
     """
     从雪球获取最新价格
@@ -36,6 +45,13 @@ def get_last_price(symbol: str, market: str) -> float:
     if key not in SYMBOL_MAPPING:
         raise Exception(f"不支持的股票代码: {key}")
     
+    # 检查雪球cookie是否配置
+    if not _check_xueqiu_cookie_available():
+        logger.warning(f"雪球cookie未配置，无法获取 {key} 实时价格")
+        raise Exception(f"雪球cookie未配置，无法获取实时行情数据。请在设置中配置雪球Cookie。")
+    
+    logger.info(f"正在获取 {key} 的实时价格...")
+    
     xueqiu_symbol = SYMBOL_MAPPING[key]
     
     try:
@@ -47,7 +63,12 @@ def get_last_price(symbol: str, market: str) -> float:
             raise Exception(f"雪球API返回无效价格: {real_price}")
     except Exception as e:
         logger.error(f"从雪球获取价格失败: {e}")
-        raise Exception(f"无法获取 {key} 的实时价格: {str(e)}")
+        # 检查是否是cookie相关的错误
+        error_msg = str(e).lower()
+        if "cookie" in error_msg or "unauthorized" in error_msg or "403" in error_msg:
+            raise Exception(f"雪球cookie可能已过期，请在设置中更新Cookie配置")
+        else:
+            raise Exception(f"无法获取 {key} 的实时价格: {str(e)}")
 
 
 def get_kline_data(symbol: str, market: str, period: str = '1m', count: int = 100) -> List[Dict[str, Any]]:

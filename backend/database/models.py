@@ -108,6 +108,19 @@ class TradingConfig(Base):
     __table_args__ = (UniqueConstraint('market', 'version'),)
 
 
+class SystemConfig(Base):
+    __tablename__ = "system_configs"
+
+    id = Column(Integer, primary_key=True, index=True)
+    key = Column(String(100), unique=True, nullable=False)
+    value = Column(String(5000), nullable=True)  # 增加到5000字符以支持长cookie
+    description = Column(String(500), nullable=True)
+    created_at = Column(TIMESTAMP, server_default=func.current_timestamp())
+    updated_at = Column(
+        TIMESTAMP, server_default=func.current_timestamp(), onupdate=func.current_timestamp()
+    )
+
+
 # US market trading configuration constants
 US_MIN_COMMISSION = 1.0  # $1 minimum commission
 US_COMMISSION_RATE = 0.005  # 0.5% commission rate

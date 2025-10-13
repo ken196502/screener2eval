@@ -70,11 +70,18 @@ async def _send_snapshot(db: Session, user_id: int):
     }
     # enrich positions with latest price and market value
     enriched_positions = []
+    price_error_message = None
+    
     for p in positions:
         try:
             price = get_last_price(p.symbol, p.market)
-        except Exception:
+        except Exception as e:
             price = None
+            # 收集价格获取错误信息，特别是cookie相关的错误
+            error_msg = str(e)
+            if "cookie" in error_msg.lower() and price_error_message is None:
+                price_error_message = error_msg
+        
         enriched_positions.append({
             "id": p.id,
             "user_id": p.user_id,
@@ -88,7 +95,8 @@ async def _send_snapshot(db: Session, user_id: int):
             "market_value": (float(price) * p.quantity) if price is not None else None,
         })
 
-    await manager.send_to_user(user_id, {
+    # 准备响应数据
+    response_data = {
         "type": "snapshot",
         "overview": overview,
         "positions": enriched_positions,
@@ -125,7 +133,16 @@ async def _send_snapshot(db: Session, user_id: int):
             }
             for t in trades
         ],
-    })
+    }
+    
+    # 如果有价格获取错误，添加警告信息
+    if price_error_message:
+        response_data["warning"] = {
+            "type": "market_data_error",
+            "message": price_error_message
+        }
+    
+    await manager.send_to_user(user_id, response_data)
 
 
 async def websocket_endpoint(websocket: WebSocket):

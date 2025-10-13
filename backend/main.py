@@ -3,7 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
 
 from database.connection import engine, Base, SessionLocal
-from database.models import TradingConfig, User
+from database.models import TradingConfig, User, SystemConfig
 from config.settings import DEFAULT_TRADING_CONFIGS
 app = FastAPI(title="Simulated US Stocks Trading API")
 
@@ -67,10 +67,12 @@ def on_shutdown():
 from api.market_data_routes import router as market_data_router
 from api.order_routes import router as order_router
 from api.account_routes import router as account_router
+from api.config_routes import router as config_router
 
 app.include_router(market_data_router)
 app.include_router(order_router)
 app.include_router(account_router)
+app.include_router(config_router)
 
 # WebSocket endpoint
 from api.ws import websocket_endpoint

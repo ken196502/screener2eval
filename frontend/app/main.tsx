@@ -43,7 +43,7 @@ function App() {
     let ws = __WS_SINGLETON__
     const created = !ws || ws.readyState === WebSocket.CLOSING || ws.readyState === WebSocket.CLOSED
     if (created) {
-      ws = new WebSocket('ws://localhost: 2621/ws')
+      ws = new WebSocket('ws://localhost:2611/ws')
       __WS_SINGLETON__ = ws
     }
     wsRef.current = ws!
@@ -164,7 +164,7 @@ function App() {
 }
 
 
-const API_BASE = 'http://127.0.0.1: 2621'
+const API_BASE = 'http://127.0.0.1:2611'
 
 function OrderBookWS({ orders }: { orders: Order[] }) {
   return (
