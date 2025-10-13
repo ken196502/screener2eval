@@ -1,6 +1,7 @@
 import requests
 import json
-from typing import Dict, List
+import re
+from typing import Dict, List, Optional
 from datetime import datetime
 
 
@@ -43,6 +44,48 @@ def get_stock_news(page: int = 1, news_type: str = 'meigu') -> Dict:
         return {}
 
 
+def extract_stock_codes(text: str) -> List[str]:
+    """
+    从文本中提取股票代码，格式为括号内以.US结尾的代码
+    
+    参数:
+        text: 要搜索的文本
+    
+    返回:
+        提取到的股票代码列表，例如['AMD.US', 'NVDA.US']
+    """
+    pattern = r'\(([A-Z]+\.US)\)'
+    matches = re.findall(pattern, text)
+    return matches
+
+
+def filter_us_stock_news(news_list: List[Dict]) -> List[Dict]:
+    """
+    过滤以"美股异动 |"开头的新闻，并提取股票代码
+    
+    参数:
+        news_list: 原始新闻列表
+    
+    返回:
+        过滤后的新闻列表，包含提取的股票代码
+    """
+    filtered_news = []
+    
+    for news in news_list:
+        digest = news.get('digest', '')
+        if digest.startswith('美股异动 |'):
+            # 提取股票代码
+            stock_codes = extract_stock_codes(digest)
+            
+            # 添加股票代码字段到新闻条目
+            news_with_codes = news.copy()
+            news_with_codes['stock_codes'] = stock_codes
+            
+            filtered_news.append(news_with_codes)
+    
+    return filtered_news
+
+
 def parse_news_item(news_item: Dict) -> Dict:
     """
     解析单条新闻数据，提取关键信息
@@ -66,12 +109,13 @@ def parse_news_item(news_item: Dict) -> Dict:
     }
 
 
-def display_news(news_list: List[Dict]) -> None:
+def display_news(news_list: List[Dict], show_stock_codes: bool = False) -> None:
     """
     格式化显示新闻列表
     
     参数:
         news_list: 新闻列表
+        show_stock_codes: 是否显示提取的股票代码
     """
     print("\n" + "="*80)
     print(f"{'美股异动新闻':^76}")
@@ -80,6 +124,11 @@ def display_news(news_list: List[Dict]) -> None:
     for idx, news in enumerate(news_list, 1):
         print(f"【{idx}】 {news['title']}")
         print(f"    摘要: {news['digest']}")
+        
+        # 如果有股票代码，显示它们
+        if show_stock_codes and 'stock_codes' in news and news['stock_codes']:
+            print(f"    股票代码: {', '.join(news['stock_codes'])}")
+        
         print(f"    关键词: {news['keywords']}")
         print(f"    作者: {news['author']} | 时间: {news['create_time']} | 浏览: {news['browse_count']}")
         print(f"    链接: {news['url']}")
@@ -100,6 +149,41 @@ def save_to_json(news_list: List[Dict], filename: str = 'us_stock_news.json') ->
         print(f"\n数据已保存到 {filename}")
     except Exception as e:
         print(f"保存文件失败: {e}")
+
+
+def get_us_stock_movement_news(page: int = 1) -> List[Dict]:
+    """
+    获取并过滤美股异动新闻，提取股票代码
+    
+    参数:
+        page: 页码，默认为1
+    
+    返回:
+        过滤后的美股异动新闻列表，包含股票代码
+    """
+    print(f"正在获取第{page}页美股异动新闻...")
+    
+    # 获取新闻
+    result = get_stock_news(page=page)
+    
+    if result.get('status') != 1000:
+        print("获取新闻失败，状态码:", result.get('status'))
+        return []
+    
+    news_data = result.get('data', {})
+    news_list = news_data.get('list', [])
+    
+    if not news_list:
+        print("没有获取到新闻数据")
+        return []
+    
+    # 解析新闻数据
+    parsed_news = [parse_news_item(item) for item in news_list]
+    
+    # 过滤美股异动新闻并提取股票代码
+    us_stock_news = filter_us_stock_news(parsed_news)
+    
+    return us_stock_news
 
 
 def main():
@@ -125,13 +209,28 @@ def main():
     # 解析新闻数据
     parsed_news = [parse_news_item(item) for item in news_list]
     
-    # 显示新闻
+    # 显示所有新闻
     display_news(parsed_news)
     
-    # 保存到文件
+    # 过滤并显示美股异动新闻
+    us_stock_news = filter_us_stock_news(parsed_news)
+    
+    if us_stock_news:
+        print("\n" + "="*80)
+        print(f"{'过滤后的美股异动新闻':^76}")
+        print("="*80)
+        display_news(us_stock_news, show_stock_codes=True)
+        
+        # 保存过滤后的新闻
+        save_to_json(us_stock_news, 'us_stock_movement_news.json')
+        print(f"\n过滤后共获取到 {len(us_stock_news)} 条美股异动新闻")
+    else:
+        print("\n没有找到美股异动新闻")
+    
+    # 保存所有新闻到文件
     save_to_json(parsed_news)
     
-    print(f"\n共获取到 {len(parsed_news)} 条新闻")
+    print(f"\n总共获取到 {len(parsed_news)} 条新闻")
     
     # 询问是否获取更多页
     try:

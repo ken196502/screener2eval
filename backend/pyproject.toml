@@ -11,6 +11,7 @@ dependencies = [
     "sqlalchemy",
     "websockets",
     "requests",
+    "apscheduler",
 ]
 
 [tool.uv]
