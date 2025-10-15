@@ -56,11 +56,23 @@ export default function SettingsDialog({ open, onOpenChange, isRequired = false 
         setCookieValue('')
         setError('')
       } else {
-        setError('保存失败，请重试')
+        setError(data.message || '保存失败，请重试')
       }
-    } catch (err) {
-      setError('保存失败，请检查网络连接')
+    } catch (err: any) {
       console.error('Save error:', err)
+      
+      // 提供更详细的错误信息
+      if (err.message.includes('HTTP error! status: 400')) {
+        setError('Cookie格式无效，请检查Cookie字符串格式')
+      } else if (err.message.includes('HTTP error! status: 500')) {
+        setError('服务器内部错误，请稍后重试')
+      } else if (err.message.includes('Failed to fetch') || err.message.includes('NetworkError')) {
+        setError('网络连接失败，请检查网络连接')
+      } else if (err.message.includes('Response is not JSON')) {
+        setError('服务器响应格式错误，请联系管理员')
+      } else {
+        setError(`保存失败: ${err.message || '未知错误'}`)
+      }
     } finally {
       setLoading(false)
     }

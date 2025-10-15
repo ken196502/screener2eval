@@ -31,29 +31,57 @@ class ConfigUpdateRequest(BaseModel):
 
 
 @router.get("/xueqiu-cookie")
-async def get_xueqiu_cookie_api():
+async def get_xueqiu_cookie_api(db: Session = Depends(get_db)):
     """获取雪球cookie配置"""
     try:
-        from services.xueqiu_market_data import get_xueqiu_cookie
-        cookie_value = get_xueqiu_cookie()
-        return {
-            "has_cookie": cookie_value is not None and cookie_value.strip() != "",
-            "value": cookie_value
-        }
+        # 首先尝试从数据库获取
+        config = db.query(SystemConfig).filter(SystemConfig.key == "xueqiu_cookie").first()
+        if config and config.value:
+            # 如果数据库有配置，确保同步到全局变量
+            from services.xueqiu_market_data import update_xueqiu_cookie
+            update_xueqiu_cookie(config.value)
+            return {
+                "has_cookie": True,
+                "value": config.value
+            }
+        else:
+            # 如果数据库没有配置，检查全局变量
+            from services.xueqiu_market_data import get_xueqiu_cookie
+            cookie_value = get_xueqiu_cookie()
+            return {
+                "has_cookie": cookie_value is not None and cookie_value.strip() != "",
+                "value": cookie_value
+            }
     except Exception as e:
         logger.error(f"获取雪球cookie配置失败: {e}")
         raise HTTPException(status_code=500, detail=f"获取配置失败: {str(e)}")
 
 
 @router.post("/xueqiu-cookie")
-async def update_xueqiu_cookie_api(request: ConfigUpdateRequest):
+async def update_xueqiu_cookie_api(request: ConfigUpdateRequest, db: Session = Depends(get_db)):
     """更新雪球cookie配置"""
     try:
         # 验证cookie长度
         if len(request.value) > 10000:
             raise HTTPException(status_code=400, detail="Cookie字符串太长，请确保长度不超过10000字符")
         
-        # 直接更新全局变量
+        # 保存到数据库
+        config = db.query(SystemConfig).filter(SystemConfig.key == "xueqiu_cookie").first()
+        if config:
+            config.value = request.value
+            if request.description:
+                config.description = request.description
+        else:
+            config = SystemConfig(
+                key="xueqiu_cookie",
+                value=request.value,
+                description=request.description or "雪球API访问Cookie"
+            )
+            db.add(config)
+        
+        db.commit()
+        
+        # 更新全局变量
         from services.xueqiu_market_data import update_xueqiu_cookie
         update_xueqiu_cookie(request.value)
         
@@ -62,16 +90,26 @@ async def update_xueqiu_cookie_api(request: ConfigUpdateRequest):
         raise
     except Exception as e:
         logger.error(f"更新雪球cookie配置失败: {e}")
+        db.rollback()
         raise HTTPException(status_code=500, detail=f"更新配置失败: {str(e)}")
 
 
 @router.get("/check-required")
-async def check_required_configs():
+async def check_required_configs(db: Session = Depends(get_db)):
     """检查必需的配置是否已设置"""
     try:
-        from services.xueqiu_market_data import get_xueqiu_cookie
-        cookie_value = get_xueqiu_cookie()
-        has_xueqiu_cookie = cookie_value is not None and cookie_value.strip() != ""
+        # 首先尝试从数据库获取
+        config = db.query(SystemConfig).filter(SystemConfig.key == "xueqiu_cookie").first()
+        if config and config.value and config.value.strip():
+            # 如果数据库有配置，确保同步到全局变量
+            from services.xueqiu_market_data import update_xueqiu_cookie
+            update_xueqiu_cookie(config.value)
+            has_xueqiu_cookie = True
+        else:
+            # 如果数据库没有配置，检查全局变量
+            from services.xueqiu_market_data import get_xueqiu_cookie
+            cookie_value = get_xueqiu_cookie()
+            has_xueqiu_cookie = cookie_value is not None and cookie_value.strip() != ""
         
         return {
             "has_required_configs": has_xueqiu_cookie,

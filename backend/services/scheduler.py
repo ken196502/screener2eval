@@ -7,11 +7,14 @@ from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.interval import IntervalTrigger
 from apscheduler.triggers.cron import CronTrigger
 from sqlalchemy.orm import Session
+from sqlalchemy import func
 from typing import Dict, Set, Callable, Optional
 import asyncio
 import logging
+from datetime import date
 
 from database.connection import SessionLocal
+from database.models import Position, StockPrice
 
 logger = logging.getLogger(__name__)
 
@@ -185,12 +188,77 @@ class TaskScheduler:
             # 执行快照更新
             db: Session = SessionLocal()
             try:
+                # 发送快照更新
                 await _send_snapshot(db, user_id)
+                
+                # 保存持仓股票的当日最新价格
+                await self._save_position_prices(db, user_id)
+                
             finally:
                 db.close()
                 
         except Exception as e:
             logger.error(f"用户 {user_id} 快照更新失败: {e}")
+    
+    async def _save_position_prices(self, db: Session, user_id: int):
+        """
+        保存用户持仓股票的当日最新价格
+        
+        Args:
+            db: 数据库会话
+            user_id: 用户ID
+        """
+        try:
+            # 获取用户的所有持仓
+            positions = db.query(Position).filter(
+                Position.user_id == user_id,
+                Position.quantity > 0
+            ).all()
+            
+            if not positions:
+                logger.debug(f"用户 {user_id} 没有持仓，跳过价格保存")
+                return
+            
+            today = date.today()
+            
+            for position in positions:
+                try:
+                    # 检查今日是否已保存该股票价格
+                    existing_price = db.query(StockPrice).filter(
+                        StockPrice.symbol == position.symbol,
+                        StockPrice.market == position.market,
+                        StockPrice.price_date == today
+                    ).first()
+                    
+                    if existing_price:
+                        logger.debug(f"股票 {position.symbol} 今日价格已存在，跳过")
+                        continue
+                    
+                    # 获取最新价格
+                    from services.market_data import get_last_price
+                    current_price = get_last_price(position.symbol, position.market)
+                    
+                    # 保存价格记录
+                    stock_price = StockPrice(
+                        symbol=position.symbol,
+                        market=position.market,
+                        price=current_price,
+                        price_date=today
+                    )
+                    
+                    db.add(stock_price)
+                    db.commit()
+                    
+                    logger.info(f"已保存股票价格: {position.symbol} {today} {current_price}")
+                    
+                except Exception as e:
+                    logger.error(f"保存股票 {position.symbol} 价格失败: {e}")
+                    db.rollback()
+                    continue
+                    
+        except Exception as e:
+            logger.error(f"保存用户 {user_id} 持仓价格失败: {e}")
+            db.rollback()
 
 
 # 全局调度器实例

@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, DECIMAL, TIMESTAMP, ForeignKey, UniqueConstraint, Float
+from sqlalchemy import Column, Integer, String, DECIMAL, TIMESTAMP, ForeignKey, UniqueConstraint, Float, Date
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 
@@ -119,6 +119,22 @@ class SystemConfig(Base):
     updated_at = Column(
         TIMESTAMP, server_default=func.current_timestamp(), onupdate=func.current_timestamp()
     )
+
+
+class StockPrice(Base):
+    __tablename__ = "stock_prices"
+
+    id = Column(Integer, primary_key=True, index=True)
+    symbol = Column(String(20), nullable=False, index=True)
+    market = Column(String(10), nullable=False, default="US")
+    price = Column(DECIMAL(18, 6), nullable=False)
+    price_date = Column(Date, nullable=False, index=True)
+    created_at = Column(TIMESTAMP, server_default=func.current_timestamp())
+    updated_at = Column(
+        TIMESTAMP, server_default=func.current_timestamp(), onupdate=func.current_timestamp()
+    )
+
+    __table_args__ = (UniqueConstraint('symbol', 'market', 'price_date'),)
 
 
 # US market trading configuration constants

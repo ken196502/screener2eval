@@ -12,7 +12,7 @@ let __WS_SINGLETON__: WebSocket | null = null;
 import Header from '@/components/layout/Header'
 import Sidebar from '@/components/layout/Sidebar'
 import TradingPanel from '@/components/trading/TradingPanel'
-import Balance from '@/components/portfolio/Balance'
+import Portfolio from '@/components/portfolio/Portfolio'
 
 interface User {
   id: number
@@ -116,7 +116,7 @@ function App() {
       <div className="flex-1 flex flex-col">
         <Header />
         <main className="flex-1 p-6 overflow-hidden">
-          <Balance
+          <Portfolio
             user={overview.user}
             totalAssets={overview.total_assets}
             positionsValue={overview.positions_value}
