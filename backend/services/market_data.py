@@ -4,16 +4,7 @@ from .xueqiu_market_data import get_last_price_from_xueqiu, get_kline_data_from_
 
 logger = logging.getLogger(__name__)
 
-# 雪球股票代码映射（雪球使用的代码格式）
-SYMBOL_MAPPING = {
-    "AAPL.US": "AAPL",
-    "TSLA.US": "TSLA", 
-    "MSFT.US": "MSFT",
-    "GOOGL.US": "GOOGL",
-    "AMZN.US": "AMZN",
-    "NVDA.US": "NVDA",
-    "META.US": "META",
-}
+# 雪球API可以直接处理美股代码，无需映射表
 
 
 def _check_xueqiu_cookie_available() -> bool:
@@ -41,10 +32,6 @@ def get_last_price(symbol: str, market: str) -> float:
     """
     key = f"{symbol}.{market}"
     
-    # 检查是否支持该股票
-    if key not in SYMBOL_MAPPING:
-        raise Exception(f"不支持的股票代码: {key}")
-    
     # 检查雪球cookie是否配置
     if not _check_xueqiu_cookie_available():
         logger.warning(f"雪球cookie未配置，无法获取 {key} 实时价格")
@@ -52,7 +39,8 @@ def get_last_price(symbol: str, market: str) -> float:
     
     logger.info(f"正在获取 {key} 的实时价格...")
     
-    xueqiu_symbol = SYMBOL_MAPPING[key]
+    # 直接使用symbol，雪球API可以处理任意美股代码
+    xueqiu_symbol = symbol
     
     try:
         real_price = get_last_price_from_xueqiu(xueqiu_symbol, market)
@@ -89,11 +77,8 @@ def get_kline_data(symbol: str, market: str, period: str = '1m', count: int = 10
     """
     key = f"{symbol}.{market}"
     
-    # 检查是否支持该股票
-    if key not in SYMBOL_MAPPING:
-        raise Exception(f"不支持的股票代码: {key}")
-    
-    xueqiu_symbol = SYMBOL_MAPPING[key]
+    # 直接使用symbol，雪球API可以处理任意美股代码
+    xueqiu_symbol = symbol
     
     try:
         kline_data = get_kline_data_from_xueqiu(xueqiu_symbol, period, count)
@@ -125,11 +110,8 @@ def get_market_status(symbol: str, market: str) -> Dict[str, Any]:
     
     key = f"{symbol}.{market}"
     
-    # 检查是否支持该股票
-    if key not in SYMBOL_MAPPING:
-        raise Exception(f"不支持的股票代码: {key}")
-    
-    xueqiu_symbol = SYMBOL_MAPPING[key]
+    # 直接使用symbol，雪球API可以处理任意美股代码
+    xueqiu_symbol = symbol
     
     try:
         status_data = xueqiu_client.get_market_status(xueqiu_symbol)

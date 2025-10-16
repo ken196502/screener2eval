@@ -42,8 +42,8 @@ def on_startup():
             demo = User(
                 version="v1",
                 username="demo",
-                initial_capital=100000.0,
-                current_cash=100000.0,
+                initial_capital=200.0,
+                current_cash=200.0,
                 frozen_cash=0.0,
             )
             db.add(demo)

@@ -181,6 +181,73 @@ async def websocket_endpoint(websocket: WebSocket):
                 elif kind == "get_snapshot":
                     if user_id is not None:
                         await _send_snapshot(db, user_id)
+                elif kind == "place_order":
+                    if user_id is None:
+                        await websocket.send_text(json.dumps({"type": "error", "message": "not authenticated"}))
+                        continue
+                    
+                    try:
+                        # Import the order creation service
+                        from services.order_matching import create_order
+                        
+                        # Get user object
+                        user = get_user(db, user_id)
+                        if not user:
+                            await websocket.send_text(json.dumps({"type": "error", "message": "user not found"}))
+                            continue
+                        
+                        # Extract order parameters
+                        symbol = msg.get("symbol")
+                        name = msg.get("name", symbol)  # Use symbol as name if not provided
+                        market = msg.get("market", "US")
+                        side = msg.get("side")
+                        order_type = msg.get("order_type")
+                        price = msg.get("price")
+                        quantity = msg.get("quantity")
+                        
+                        # Validate required parameters
+                        if not all([symbol, side, order_type, quantity]):
+                            await websocket.send_text(json.dumps({"type": "error", "message": "missing required parameters"}))
+                            continue
+                        
+                        # Convert quantity to int
+                        try:
+                            quantity = int(quantity)
+                        except (ValueError, TypeError):
+                            await websocket.send_text(json.dumps({"type": "error", "message": "invalid quantity"}))
+                            continue
+                        
+                        # Create the order
+                        order = create_order(
+                            db=db,
+                            user=user,
+                            symbol=symbol,
+                            name=name,
+                            market=market,
+                            side=side,
+                            order_type=order_type,
+                            price=price,
+                            quantity=quantity
+                        )
+                        
+                        # Commit the order
+                        db.commit()
+                        
+                        # Send success response
+                        await manager.send_to_user(user_id, {"type": "order_pending", "order_id": order.id})
+                        
+                        # Send updated snapshot
+                        await _send_snapshot(db, user_id)
+                        
+                    except ValueError as e:
+                        # Business logic errors (insufficient funds, etc.)
+                        await websocket.send_text(json.dumps({"type": "error", "message": str(e)}))
+                    except Exception as e:
+                        # Unexpected errors
+                        import traceback
+                        print(f"Order placement error: {e}")
+                        print(traceback.format_exc())
+                        await websocket.send_text(json.dumps({"type": "error", "message": f"order placement failed: {str(e)}"}))
                 elif kind == "ping":
                     await websocket.send_text(json.dumps({"type": "pong"}))
                 else:

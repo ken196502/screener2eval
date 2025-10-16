@@ -51,6 +51,7 @@ export default function SettingsDialog({ open, onOpenChange, isRequired = false 
 
     try {
       const data = await saveXueqiuCookie(cookieValue.trim())
+      
       if (data.success) {
         onOpenChange(false)
         setCookieValue('')

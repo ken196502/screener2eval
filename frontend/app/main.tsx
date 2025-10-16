@@ -13,6 +13,7 @@ import Header from '@/components/layout/Header'
 import Sidebar from '@/components/layout/Sidebar'
 import TradingPanel from '@/components/trading/TradingPanel'
 import Portfolio from '@/components/portfolio/Portfolio'
+import AssetCurve from '@/components/portfolio/AssetCurve'
 
 interface User {
   id: number
@@ -37,6 +38,7 @@ function App() {
   const [positions, setPositions] = useState<Position[]>([])
   const [orders, setOrders] = useState<Order[]>([])
   const [trades, setTrades] = useState<Trade[]>([])
+  const [currentPage, setCurrentPage] = useState<string>('portfolio')
   const wsRef = useRef<WebSocket | null>(null)
 
   useEffect(() => {
@@ -110,54 +112,72 @@ function App() {
 
   if (!userId || !overview) return <div className="p-8">Connecting to trading server...</div>
 
+  const renderMainContent = () => {
+    if (currentPage === 'asset-curve') {
+      return (
+        <main className="flex-1 p-6 overflow-auto">
+          <AssetCurve />
+        </main>
+      )
+    }
+    
+    // Default portfolio page
+    return (
+      <main className="flex-1 p-6 overflow-hidden">
+        <Portfolio
+          user={overview.user}
+          totalAssets={overview.total_assets}
+          positionsValue={overview.positions_value}
+        />
+        <div className="flex gap-6 h-[calc(100vh-400px)] mt-4">
+          {/* Trading Panel - Left Side */}
+          <div className="flex-shrink-0">
+            <TradingPanel
+              onPlace={placeOrder}
+              user={overview.user}
+              positions={positions.map(p => ({ symbol: p.symbol, market: p.market, available_quantity: p.available_quantity }))}
+              lastPrices={Object.fromEntries(positions.map(p => [`${p.symbol}.${p.market}`, p.last_price ?? null]))}
+            />
+          </div>
+
+          {/* Tabbed Content - Right Side */}
+          <div className="flex-1 overflow-hidden">
+            <Tabs defaultValue="positions" className="h-full flex flex-col">
+              <TabsList className="grid w-full grid-cols-3">
+                <TabsTrigger value="positions">Positions</TabsTrigger>
+                <TabsTrigger value="orders">Orders</TabsTrigger>
+                <TabsTrigger value="trades">Trades</TabsTrigger>
+              </TabsList>
+
+              <div className="flex-1 overflow-hidden">
+                <TabsContent value="positions" className="h-full overflow-y-auto">
+                  <PositionListWS positions={positions} />
+                </TabsContent>
+
+                <TabsContent value="orders" className="h-full overflow-y-auto">
+                  <OrderBookWS orders={orders} />
+                </TabsContent>
+
+                <TabsContent value="trades" className="h-full overflow-y-auto">
+                  <TradeHistoryWS trades={trades} />
+                </TabsContent>
+              </div>
+            </Tabs>
+          </div>
+        </div>
+      </main>
+    )
+  }
+
   return (
     <div className="h-screen flex overflow-hidden">
-      <Sidebar />
+      <Sidebar 
+        currentPage={currentPage} 
+        onPageChange={setCurrentPage} 
+      />
       <div className="flex-1 flex flex-col">
         <Header />
-        <main className="flex-1 p-6 overflow-hidden">
-          <Portfolio
-            user={overview.user}
-            totalAssets={overview.total_assets}
-            positionsValue={overview.positions_value}
-          />
-          <div className="flex gap-6 h-[calc(100vh-400px)] mt-4">
-            {/* Trading Panel - Left Side */}
-            <div className="flex-shrink-0">
-              <TradingPanel
-                onPlace={placeOrder}
-                user={overview.user}
-                positions={positions.map(p => ({ symbol: p.symbol, market: p.market, available_quantity: p.available_quantity }))}
-                lastPrices={Object.fromEntries(positions.map(p => [`${p.symbol}.${p.market}`, p.last_price ?? null]))}
-              />
-            </div>
-
-            {/* Tabbed Content - Right Side */}
-            <div className="flex-1 overflow-hidden">
-              <Tabs defaultValue="positions" className="h-full flex flex-col">
-                <TabsList className="grid w-full grid-cols-3">
-                  <TabsTrigger value="positions">Positions</TabsTrigger>
-                  <TabsTrigger value="orders">Orders</TabsTrigger>
-                  <TabsTrigger value="trades">Trades</TabsTrigger>
-                </TabsList>
-
-                <div className="flex-1 overflow-hidden">
-                  <TabsContent value="positions" className="h-full overflow-y-auto">
-                    <PositionListWS positions={positions} />
-                  </TabsContent>
-
-                  <TabsContent value="orders" className="h-full overflow-y-auto">
-                    <OrderBookWS orders={orders} />
-                  </TabsContent>
-
-                  <TabsContent value="trades" className="h-full overflow-y-auto">
-                    <TradeHistoryWS trades={trades} />
-                  </TabsContent>
-                </div>
-              </Tabs>
-            </div>
-          </div>
-        </main>
+        {renderMainContent()}
       </div>
     </div>
   )
