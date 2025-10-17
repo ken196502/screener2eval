@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react'
-import { PieChart, ArrowLeftRight, Settings, TrendingUp } from 'lucide-react'
+import { PieChart, Settings, TrendingUp, Newspaper } from 'lucide-react'
 import SettingsDialog from './SettingsDialog'
 import { checkRequiredConfigs } from '@/lib/api'
 
@@ -66,14 +66,26 @@ export default function Sidebar({ currentPage = 'portfolio', onPageChange }: Sid
     <>
       <aside className="w-16 border-r h-full p-2 flex flex-col items-center">
         <nav className="space-y-4">
+           <button 
+            className={`flex items-center justify-center w-10 h-10 rounded-lg transition-colors ${
+              currentPage === 'news' 
+                ? 'bg-secondary/80 text-secondary-foreground' 
+                : 'hover:bg-muted text-muted-foreground'
+            }`}
+            onClick={() => onPageChange?.('news')}
+            title="US Stock Movement"
+          >
+            <Newspaper className="w-5 h-5" />
+          </button>
+
           <button 
             className={`flex items-center justify-center w-10 h-10 rounded-lg transition-colors ${
               currentPage === 'portfolio' 
-                ? 'bg-blue-100 text-blue-600' 
-                : 'hover:bg-gray-100 text-gray-600'
+                ? 'bg-secondary/80 text-secondary-foreground' 
+                : 'hover:bg-muted text-muted-foreground'
             }`}
             onClick={() => onPageChange?.('portfolio')}
-            title="投资组合"
+            title="Portfolio"
           >
             <PieChart className="w-5 h-5" />
           </button>
@@ -81,21 +93,21 @@ export default function Sidebar({ currentPage = 'portfolio', onPageChange }: Sid
           <button 
             className={`flex items-center justify-center w-10 h-10 rounded-lg transition-colors ${
               currentPage === 'asset-curve' 
-                ? 'bg-blue-100 text-blue-600' 
-                : 'hover:bg-gray-100 text-gray-600'
+                ? 'bg-secondary/80 text-secondary-foreground' 
+                : 'hover:bg-muted text-muted-foreground'
             }`}
             onClick={() => onPageChange?.('asset-curve')}
-            title="资产曲线"
+            title="Asset Curve"
           >
             <TrendingUp className="w-5 h-5" />
           </button>
 
           <button
-            className="flex items-center justify-center w-10 h-10 rounded-lg hover:bg-gray-100 transition-colors"
+            className="flex items-center justify-center w-10 h-10 rounded-lg hover:bg-muted transition-colors text-muted-foreground"
             onClick={() => setSettingsOpen(true)}
-            title="设置"
+            title="Settings"
           >
-            <Settings className="w-5 h-5 text-gray-600" />
+            <Settings className="w-5 h-5" />
           </button>
         </nav>
       </aside>

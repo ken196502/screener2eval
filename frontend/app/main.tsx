@@ -14,6 +14,7 @@ import Sidebar from '@/components/layout/Sidebar'
 import TradingPanel from '@/components/trading/TradingPanel'
 import Portfolio from '@/components/portfolio/Portfolio'
 import AssetCurve from '@/components/portfolio/AssetCurve'
+import NewsPanel from '@/components/news/NewsPanel'
 
 interface User {
   id: number
@@ -32,13 +33,19 @@ interface Position { id: number; user_id: number; symbol: string; name: string; 
 interface Order { id: number; order_no: string; symbol: string; name: string; market: string; side: string; order_type: string; price?: number; quantity: number; filled_quantity: number; status: string }
 interface Trade { id: number; order_id: number; user_id: number; symbol: string; name: string; market: string; side: string; price: number; quantity: number; commission: number; trade_time: string }
 
+const PAGE_TITLES: Record<string, string> = {
+  news: 'GMT Eight News',
+  portfolio: 'Simulated US Stocks Trading',
+  'asset-curve': 'Asset Curve Overview',
+}
+
 function App() {
   const [userId, setUserId] = useState<number | null>(null)
   const [overview, setOverview] = useState<Overview | null>(null)
   const [positions, setPositions] = useState<Position[]>([])
   const [orders, setOrders] = useState<Order[]>([])
   const [trades, setTrades] = useState<Trade[]>([])
-  const [currentPage, setCurrentPage] = useState<string>('portfolio')
+  const [currentPage, setCurrentPage] = useState<string>('news')
   const wsRef = useRef<WebSocket | null>(null)
 
   useEffect(() => {
@@ -121,6 +128,14 @@ function App() {
       )
     }
     
+    if (currentPage === 'news') {
+      return (
+        <main className="flex-1 overflow-auto">
+          <NewsPanel />
+        </main>
+      )
+    }
+    
     // Default portfolio page
     return (
       <main className="flex-1 p-6 overflow-hidden">
@@ -169,6 +184,8 @@ function App() {
     )
   }
 
+  const pageTitle = PAGE_TITLES[currentPage] ?? PAGE_TITLES.portfolio
+
   return (
     <div className="h-screen flex overflow-hidden">
       <Sidebar 
@@ -176,7 +193,7 @@ function App() {
         onPageChange={setCurrentPage} 
       />
       <div className="flex-1 flex flex-col">
-        <Header />
+        <Header title={pageTitle} />
         {renderMainContent()}
       </div>
     </div>

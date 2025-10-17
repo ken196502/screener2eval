@@ -104,15 +104,15 @@ export default function Portfolio({
         {/* Total Assets & Initial Capital */}
         <Card className="p-4">
           <div className="text-sm text-muted-foreground mb-1">Total Assets</div>
-          <div className="text-2xl font-bold text-blue-600 mb-2">
+          <div className="text-2xl font-bold text-primary mb-2">
             {formatCurrency(totalAssets)}
           </div>
           <div className="text-xs text-muted-foreground">Initial Capital</div>
-          <div className="text-sm font-medium text-gray-600">
+          <div className="text-sm font-medium text-muted-foreground">
             {formatCurrency(user.initial_capital)}
           </div>
           <div className={`text-sm font-medium mt-2 ${
-            pnl >= 0 ? 'text-green-600' : 'text-red-600'
+            pnl >= 0 ? 'text-green-500' : 'text-destructive'
           }`}>
             {pnl >= 0 ? '+' : ''}{formatCurrency(pnl)} ({pnl >= 0 ? '+' : ''}{pnlPercent.toFixed(2)}%)
           </div>

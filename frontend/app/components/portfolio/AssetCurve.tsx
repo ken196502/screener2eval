@@ -166,7 +166,7 @@ export default function AssetCurve() {
     return (
       <Card className="p-6">
         <div className="flex items-center justify-center h-96">
-          <div className="text-gray-500">Loading asset curve...</div>
+          <div className="text-muted-foreground">Loading asset curve...</div>
         </div>
       </Card>
     )
@@ -176,10 +176,10 @@ export default function AssetCurve() {
     return (
       <Card className="p-6">
         <div className="flex flex-col items-center justify-center h-96 space-y-4">
-          <div className="text-red-500">Failed to load asset curve: {error}</div>
+          <div className="text-destructive">Failed to load asset curve: {error}</div>
           <button
             onClick={fetchAssetCurve}
-            className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 transition-colors"
+            className="px-4 py-2 bg-primary text-primary-foreground rounded hover:bg-primary/90 transition-colors"
           >
             Retry
           </button>
@@ -192,7 +192,7 @@ export default function AssetCurve() {
     return (
       <Card className="p-6">
         <div className="flex items-center justify-center h-96">
-          <div className="text-gray-500">No asset data available</div>
+          <div className="text-muted-foreground">No asset data available</div>
         </div>
       </Card>
     )
@@ -206,9 +206,9 @@ export default function AssetCurve() {
       
       {/* 统计信息 */}
       <div className="mt-6 grid grid-cols-1 md:grid-cols-3 gap-4">
-        <div className="bg-blue-50 p-4 rounded-lg">
-          <div className="text-sm text-blue-600 font-medium">Current Total Assets</div>
-          <div className="text-2xl font-bold text-blue-700">
+        <div className="bg-secondary p-4 rounded-lg">
+          <div className="text-sm text-secondary-foreground font-medium">Current Total Assets</div>
+          <div className="text-2xl font-bold text-secondary-foreground">
             $ {data[data.length - 1]?.total_assets.toLocaleString('en-US', {
               minimumFractionDigits: 2,
               maximumFractionDigits: 2,
@@ -216,9 +216,9 @@ export default function AssetCurve() {
           </div>
         </div>
         
-        <div className="bg-green-50 p-4 rounded-lg">
-          <div className="text-sm text-green-600 font-medium">Current Cash</div>
-          <div className="text-2xl font-bold text-green-700">
+        <div className="bg-secondary p-4 rounded-lg">
+          <div className="text-sm text-secondary-foreground font-medium">Current Cash</div>
+          <div className="text-2xl font-bold text-secondary-foreground">
             ${data[data.length - 1]?.cash.toLocaleString('en-US', {
               minimumFractionDigits: 2,
               maximumFractionDigits: 2,
@@ -226,9 +226,9 @@ export default function AssetCurve() {
           </div>
         </div>
         
-        <div className="bg-purple-50 p-4 rounded-lg">
-          <div className="text-sm text-purple-600 font-medium">Current Position Value</div>
-          <div className="text-2xl font-bold text-purple-700">
+        <div className="bg-secondary p-4 rounded-lg">
+          <div className="text-sm text-secondary-foreground font-medium">Current Position Value</div>
+          <div className="text-2xl font-bold text-secondary-foreground">
             ${data[data.length - 1]?.positions_value.toLocaleString('en-US', {
               minimumFractionDigits: 2,
               maximumFractionDigits: 2,

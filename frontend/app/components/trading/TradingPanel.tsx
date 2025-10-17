@@ -228,7 +228,7 @@ export default function TradingPanel({ onPlace, user, positions = [], lastPrices
         </div>
         <div className="flex justify-between">
           <span className="text-xs">Available Cash</span>
-          <span className="text-xs text-[#16BA71]">{currencySymbol}{cashAvailable.toFixed(2)}</span>
+          <span className="text-xs text-green-500">{currencySymbol}{cashAvailable.toFixed(2)}</span>
         </div>
         <div className="flex justify-between">
           <span className="text-xs">Frozen Cash</span>
@@ -236,7 +236,7 @@ export default function TradingPanel({ onPlace, user, positions = [], lastPrices
         </div>
         <div className="flex justify-between">
           <span className="text-xs">Sellable Position</span>
-          <span className="text-xs text-[#F44345]">{positionAvailable}</span>
+          <span className="text-xs text-destructive">{positionAvailable}</span>
         </div>
         <div className="flex justify-between">
           <span className="text-xs">Max Buyable</span>
@@ -247,13 +247,13 @@ export default function TradingPanel({ onPlace, user, positions = [], lastPrices
       {/* 买卖按钮 */}
       <div className="flex gap-2 pt-4">
         <Button 
-          className="flex-1 text-xs h-6 rounded-xl bg-[#F44345] hover:bg-[#d63b3d] text-white"
+          className="flex-1 text-xs h-6 rounded-xl bg-destructive hover:bg-destructive/90 text-destructive-foreground"
           onClick={handleBuy}
         >
           Buy
         </Button>
         <Button 
-          className="flex-1 text-xs h-6 rounded-xl bg-[#16BA71] hover:bg-[#10975c] text-white"
+          className="flex-1 text-xs h-6 rounded-xl bg-green-600 hover:bg-green-500 text-white"
           onClick={handleSell}
         >
           Sell

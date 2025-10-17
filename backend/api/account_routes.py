@@ -137,7 +137,6 @@ async def get_asset_curve(user_id: int, db: Session = Depends(get_db)):
                 trade_date = td[0]  # 当使用label时，结果是元组
             
             if isinstance(trade_date, str):
-                from datetime import datetime
                 trade_date = datetime.strptime(trade_date, '%Y-%m-%d').date()
             elif hasattr(trade_date, 'date'):
                 trade_date = trade_date.date()
@@ -152,7 +151,6 @@ async def get_asset_curve(user_id: int, db: Session = Depends(get_db)):
                 price_date = pd[0]
                 
             if isinstance(price_date, str):
-                from datetime import datetime
                 price_date = datetime.strptime(price_date, '%Y-%m-%d').date()
             elif hasattr(price_date, 'date'):
                 price_date = price_date.date()
