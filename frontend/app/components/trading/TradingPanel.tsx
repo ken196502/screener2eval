@@ -7,6 +7,7 @@ import { toast } from 'react-hot-toast'
 interface User {
   current_cash: number
   frozen_cash: number
+  has_password: boolean
 }
 
 interface PositionLite { symbol: string; market: string; available_quantity: number }
@@ -46,9 +47,136 @@ export default function TradingPanel({ onPlace, user, positions = [], lastPrices
     }
   }, [orderType, lastPrices, symbol, market])
   const [quantity, setQuantity] = useState<number>(2)
+  const [showPasswordDialog, setShowPasswordDialog] = useState<boolean>(false)
+  const [pendingTrade, setPendingTrade] = useState<{side: 'BUY' | 'SELL'} | null>(null)
+  const [dialogPassword, setDialogPassword] = useState<string>('')
+  const [dialogUsername, setDialogUsername] = useState<string>('')
+  const [authSessionToken, setAuthSessionToken] = useState<string>('')
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false)
+  const [authExpiry, setAuthExpiry] = useState<string>('')
 
   // US market only - USD currency
   const currencySymbol = '$'
+
+  // Check if user has valid auth session on component mount
+  useEffect(() => {
+    const savedToken = localStorage.getItem(`auth_session_${user?.id}`)
+    const savedExpiry = localStorage.getItem(`auth_expiry_${user?.id}`)
+    
+    if (savedToken && savedExpiry && user?.id) {
+      const expiryDate = new Date(savedExpiry)
+      if (expiryDate > new Date()) {
+        // Verify token with backend
+        verifyAuthSession(savedToken)
+      } else {
+        // Token expired, clear storage
+        clearAuthSession()
+      }
+    }
+  }, [user?.id])
+
+  const verifyAuthSession = async (token: string) => {
+    try {
+      const response = await fetch('/api/account/auth/verify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ session_token: token })
+      })
+      const data = await response.json()
+      
+      if (data.valid && data.user_id === user?.id) {
+        setAuthSessionToken(token)
+        setIsAuthenticated(true)
+        const savedExpiry = localStorage.getItem(`auth_expiry_${user?.id}`)
+        if (savedExpiry) {
+          setAuthExpiry(savedExpiry)
+        }
+      } else {
+        clearAuthSession()
+      }
+    } catch (error) {
+      console.error('Failed to verify auth session:', error)
+      clearAuthSession()
+    }
+  }
+
+  const clearAuthSession = () => {
+    setAuthSessionToken('')
+    setIsAuthenticated(false)
+    setAuthExpiry('')
+    if (user?.id) {
+      localStorage.removeItem(`auth_session_${user.id}`)
+      localStorage.removeItem(`auth_expiry_${user.id}`)
+    }
+  }
+
+
+  const handlePasswordSubmit = async () => {
+    if (!dialogPassword.trim()) {
+      toast.error('Please enter trading password')
+      return
+    }
+
+    if (!dialogUsername.trim()) {
+      toast.error('Please enter username')
+      return
+    }
+
+    if (!pendingTrade) return
+
+    try {
+      // 写死功能：认证成功后自动创建180天免密会话
+      const response = await fetch(`/api/account/auth/login?user_id=${user?.id}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          username: dialogUsername, 
+          password: dialogPassword 
+        })
+      })
+      const data = await response.json()
+      
+      if (response.ok) {
+        // 保存180天认证会话
+        setAuthSessionToken(data.session_token)
+        setIsAuthenticated(true)
+        setAuthExpiry(data.expires_at)
+        
+        // 保存到本地存储
+        if (user?.id) {
+          localStorage.setItem(`auth_session_${user.id}`, data.session_token)
+          localStorage.setItem(`auth_expiry_${user.id}`, data.expires_at)
+        }
+        
+        toast.success('认证成功，180天内免密交易')
+        
+        // 使用session token执行交易
+        const orderData: any = {
+          symbol,
+          name,
+          market,
+          side: pendingTrade.side,
+          order_type: orderType,
+          price: orderType === 'LIMIT' ? price : undefined,
+          quantity,
+          session_token: data.session_token
+        }
+
+        onPlace(orderData)
+      } else {
+        toast.error(data.detail || '用户名或密码错误')
+      }
+    } catch (error) {
+      console.error('Failed to authenticate:', error)
+      toast.error('认证失败，请重试')
+    } finally {
+      // Close dialog and reset state
+      setShowPasswordDialog(false)
+      setPendingTrade(null)
+      setDialogPassword('')
+      setDialogUsername('')
+    }
+  }
 
   const adjustPrice = (delta: number) => {
     if (orderType === 'MARKET') return // 市价单不允许手动改价
@@ -93,15 +221,25 @@ export default function TradingPanel({ onPlace, user, positions = [], lastPrices
       toast.error('Insufficient available cash')
       return
     }
-    onPlace({
-      symbol,
-      name,
-      market,
-      side: 'BUY',
-      order_type: orderType,
-      price: orderType === 'LIMIT' ? price : undefined,
-      quantity
-    })
+    
+    // 如果已认证，直接交易
+    if (isAuthenticated && authSessionToken) {
+      const orderData: any = {
+        symbol,
+        name,
+        market,
+        side: 'BUY',
+        order_type: orderType,
+        price: orderType === 'LIMIT' ? price : undefined,
+        quantity,
+        session_token: authSessionToken
+      }
+      onPlace(orderData)
+    } else {
+      // 未认证，显示密码弹窗
+      setPendingTrade({side: 'BUY'})
+      setShowPasswordDialog(true)
+    }
   }
 
   const handleSell = () => {
@@ -117,15 +255,25 @@ export default function TradingPanel({ onPlace, user, positions = [], lastPrices
       toast.error('Insufficient sellable position')
       return
     }
-    onPlace({
-      symbol,
-      name,
-      market,
-      side: 'SELL',
-      order_type: orderType,
-      price: orderType === 'LIMIT' ? price : undefined,
-      quantity
-    })
+    
+    // 如果已认证，直接交易
+    if (isAuthenticated && authSessionToken) {
+      const orderData: any = {
+        symbol,
+        name,
+        market,
+        side: 'SELL',
+        order_type: orderType,
+        price: orderType === 'LIMIT' ? price : undefined,
+        quantity,
+        session_token: authSessionToken
+      }
+      onPlace(orderData)
+    } else {
+      // 未认证，显示密码弹窗
+      setPendingTrade({side: 'SELL'})
+      setShowPasswordDialog(true)
+    }
   }
 
   return (
@@ -244,6 +392,7 @@ export default function TradingPanel({ onPlace, user, positions = [], lastPrices
         </div>
       </div>
 
+
       {/* 买卖按钮 */}
       <div className="flex gap-2 pt-4">
         <Button 
@@ -259,6 +408,74 @@ export default function TradingPanel({ onPlace, user, positions = [], lastPrices
           Sell
         </Button>
       </div>
+
+      {/* 密码输入弹窗 */}
+      {showPasswordDialog && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-background rounded-lg p-6 w-80 max-w-sm mx-4">
+            <h3 className="text-lg font-semibold mb-4">
+              确认交易 - {pendingTrade?.side === 'BUY' ? '买入' : '卖出'}
+            </h3>
+            
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium mb-2">
+                  用户名
+                </label>
+                <Input
+                  type="text"
+                  value={dialogUsername}
+                  onChange={(e) => setDialogUsername(e.target.value)}
+                  placeholder="输入用户名"
+                  className="w-full"
+                  autoFocus
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium mb-2">
+                  交易密码
+                </label>
+                <Input
+                  type="password"
+                  value={dialogPassword}
+                  onChange={(e) => setDialogPassword(e.target.value)}
+                  placeholder={user?.has_password ? "输入交易密码" : "设置新的交易密码"}
+                  className="w-full"
+                />
+                <div className="text-xs text-gray-500 mt-1">
+                  {user?.has_password 
+                    ? "输入已设置的交易密码" 
+                    : "首次交易将设置此密码为交易密码"
+                  }
+                </div>
+              </div>
+
+              <div className="flex gap-3 pt-2">
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    setShowPasswordDialog(false)
+                    setPendingTrade(null)
+                    setDialogPassword('')
+                    setDialogUsername('')
+                  }}
+                  className="flex-1"
+                >
+                  取消
+                </Button>
+                <Button
+                  onClick={handlePasswordSubmit}
+                  disabled={!dialogPassword.trim() || !dialogUsername.trim()}
+                  className="flex-1"
+                >
+                  确认交易
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

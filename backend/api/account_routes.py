@@ -12,9 +12,13 @@ import logging
 
 from database.connection import SessionLocal
 from database.models import User, Position, Trade, StockPrice
-from repositories.user_repo import get_user
+from repositories.user_repo import (
+    get_user, user_has_password, set_user_password, verify_user_password,
+    create_auth_session, verify_auth_session, revoke_auth_session, revoke_all_user_sessions
+)
 from repositories.position_repo import list_positions
 from services.asset_calculator import calc_positions_value
+from schemas.user import PasswordSetRequest, PasswordVerifyRequest, AuthSessionResponse, AuthVerifyRequest, AuthLoginRequest
 
 logger = logging.getLogger(__name__)
 
@@ -44,6 +48,7 @@ async def get_overview(user_id: int, db: Session = Depends(get_db)):
                 "initial_capital": float(user.initial_capital),
                 "current_cash": float(user.current_cash),
                 "frozen_cash": float(user.frozen_cash),
+                "has_password": user_has_password(db, user_id),
             },
             "total_assets": positions_value + float(user.current_cash),
             "positions_value": positions_value,
@@ -250,3 +255,138 @@ def _calculate_positions_value_on_date(db: Session, user_id: int, target_date: d
             logger.warning(f"未找到 {pos_info['symbol']} 在 {target_date} 的价格数据")
     
     return total_value
+
+
+@router.post("/password/set")
+async def set_password(user_id: int, request: PasswordSetRequest, db: Session = Depends(get_db)):
+    """设置或更新交易密码"""
+    try:
+        user = get_user(db, user_id)
+        if not user:
+            raise HTTPException(status_code=404, detail="用户不存在")
+        
+        if not request.password or len(request.password.strip()) < 4:
+            raise HTTPException(status_code=400, detail="密码长度至少4位")
+        
+        updated_user = set_user_password(db, user_id, request.password)
+        if not updated_user:
+            raise HTTPException(status_code=500, detail="密码设置失败")
+        
+        return {"message": "交易密码设置成功"}
+    
+    except Exception as e:
+        logger.error(f"设置交易密码失败: {e}")
+        raise HTTPException(status_code=500, detail="设置交易密码失败")
+
+
+@router.post("/password/verify")
+async def verify_password(user_id: int, request: PasswordVerifyRequest, db: Session = Depends(get_db)):
+    """验证交易密码"""
+    try:
+        user = get_user(db, user_id)
+        if not user:
+            raise HTTPException(status_code=404, detail="用户不存在")
+        
+        if not user_has_password(db, user_id):
+            raise HTTPException(status_code=400, detail="用户尚未设置交易密码")
+        
+        is_valid = verify_user_password(db, user_id, request.password)
+        
+        return {"valid": is_valid}
+    
+    except Exception as e:
+        logger.error(f"验证交易密码失败: {e}")
+        raise HTTPException(status_code=500, detail="验证交易密码失败")
+
+
+@router.post("/auth/login", response_model=AuthSessionResponse)
+async def create_auth_session_endpoint(user_id: int, request: AuthLoginRequest, db: Session = Depends(get_db)):
+    """创建认证会话（180天有效期）- 写死功能"""
+    try:
+        user = get_user(db, user_id)
+        if not user:
+            raise HTTPException(status_code=404, detail="用户不存在")
+        
+        # 验证用户名是否匹配
+        if user.username != request.username:
+            raise HTTPException(status_code=401, detail="用户名不匹配")
+        
+        # 密码验证 - 支持首次设置
+        if not user_has_password(db, user_id):
+            # 首次交易，设置密码
+            if len(request.password.strip()) < 4:
+                raise HTTPException(status_code=400, detail="密码长度至少4位")
+            
+            updated_user = set_user_password(db, user_id, request.password)
+            if not updated_user:
+                raise HTTPException(status_code=500, detail="设置交易密码失败")
+            
+            logger.info(f"用户 {user_id} 首次认证，已设置交易密码")
+        else:
+            # 验证现有密码
+            if not verify_user_password(db, user_id, request.password):
+                raise HTTPException(status_code=401, detail="交易密码错误")
+        
+        # 创建会话
+        session = create_auth_session(db, user_id)
+        if not session:
+            raise HTTPException(status_code=500, detail="创建认证会话失败")
+        
+        return AuthSessionResponse(
+            session_token=session.session_token,
+            expires_at=session.expires_at.isoformat(),
+            message="认证会话创建成功，180天内有效"
+        )
+    
+    except Exception as e:
+        logger.error(f"创建认证会话失败: {e}")
+        raise HTTPException(status_code=500, detail="创建认证会话失败")
+
+
+@router.post("/auth/verify")
+async def verify_auth_session_endpoint(request: AuthVerifyRequest, db: Session = Depends(get_db)):
+    """验证认证会话是否有效"""
+    try:
+        user_id = verify_auth_session(db, request.session_token)
+        
+        if user_id is None:
+            return {"valid": False, "message": "会话无效或已过期"}
+        
+        return {"valid": True, "user_id": user_id, "message": "会话有效"}
+    
+    except Exception as e:
+        logger.error(f"验证认证会话失败: {e}")
+        raise HTTPException(status_code=500, detail="验证认证会话失败")
+
+
+@router.post("/auth/logout")
+async def logout_auth_session(request: AuthVerifyRequest, db: Session = Depends(get_db)):
+    """注销认证会话"""
+    try:
+        success = revoke_auth_session(db, request.session_token)
+        
+        if success:
+            return {"message": "会话已注销"}
+        else:
+            return {"message": "会话不存在或已过期"}
+    
+    except Exception as e:
+        logger.error(f"注销认证会话失败: {e}")
+        raise HTTPException(status_code=500, detail="注销认证会话失败")
+
+
+@router.post("/auth/logout-all")
+async def logout_all_sessions(user_id: int, db: Session = Depends(get_db)):
+    """注销用户所有认证会话"""
+    try:
+        user = get_user(db, user_id)
+        if not user:
+            raise HTTPException(status_code=404, detail="用户不存在")
+        
+        deleted_count = revoke_all_user_sessions(db, user_id)
+        
+        return {"message": f"已注销 {deleted_count} 个会话"}
+    
+    except Exception as e:
+        logger.error(f"注销所有会话失败: {e}")
+        raise HTTPException(status_code=500, detail="注销所有会话失败")

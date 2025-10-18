@@ -1,6 +1,7 @@
-from sqlalchemy import Column, Integer, String, DECIMAL, TIMESTAMP, ForeignKey, UniqueConstraint, Float, Date
+from sqlalchemy import Column, Integer, String, DECIMAL, TIMESTAMP, ForeignKey, UniqueConstraint, Float, Date, DateTime
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
+import datetime
 
 from .connection import Base
 
@@ -11,6 +12,7 @@ class User(Base):
     id = Column(Integer, primary_key=True, index=True)
     version = Column(String(100), nullable=False, default="v1")
     username = Column(String(50), unique=True, nullable=False)
+    password = Column(String(255), nullable=True)  # Trading password for order operations
     
     # USD currency fields (US market only)
     initial_capital = Column(DECIMAL(18, 2), nullable=False, default=100000.00)
@@ -24,6 +26,19 @@ class User(Base):
 
     positions = relationship("Position", back_populates="user")
     orders = relationship("Order", back_populates="user")
+    auth_sessions = relationship("UserAuthSession", back_populates="user")
+
+
+class UserAuthSession(Base):
+    __tablename__ = "user_auth_sessions"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    session_token = Column(String(64), unique=True, nullable=False, index=True)
+    expires_at = Column(DateTime, nullable=False)
+    created_at = Column(TIMESTAMP, server_default=func.current_timestamp())
+    
+    user = relationship("User", back_populates="auth_sessions")
 
 
 class Position(Base):

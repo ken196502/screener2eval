@@ -1,0 +1,22 @@
+version: '3.8'
+
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "2611:2611"
+    environment:
+      - HOST=0.0.0.0
+      - PORT=2611
+    volumes:
+      # Mount for development database persistence (optional)
+      - ./demo_trading.db:/app/backend/demo_trading.db
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:2611/api/health" ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s

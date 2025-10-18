@@ -38,7 +38,7 @@ export default function NewsPanel() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [currentPage, setCurrentPage] = useState(1)
-  const [selectedSymbol, setSelectedSymbol] = useState<string | null>(null)
+  const [selectedSymbol, setSelectedSymbol] = useState<string | null>('IXIC')
   const chartContainerRef = useRef<HTMLDivElement | null>(null)
   const tradingViewContainerId = useMemo(
     () => `tradingview-widget-${Math.random().toString(36).slice(2)}`,
@@ -89,9 +89,9 @@ export default function NewsPanel() {
   }
 
   const NewsRow = ({ news, index }: { news: NewsItem; index: number }) => (
-    <div className="py-3 px-4 hover:bg-muted border-b border-border">
+    <div className="p-2 hover:bg-muted border-b border-border">
       <div className="flex gap-3">
-        <div className="w-8 text-sm text-muted-foreground flex-shrink-0 text-center">
+        <div className="w-4 text-sm text-muted-foreground flex-shrink-0 text-center">
           {index + 1}
         </div>
         <div className="flex-1 min-w-0">
@@ -131,8 +131,8 @@ export default function NewsPanel() {
 
   if (error) {
     return (
-      <div className="p-6">
-        <Card className="p-6 text-center">
+      <div className="p-2">
+        <Card className="p-2 text-center">
           <div className="text-red-600 mb-4">
             <h3 className="text-lg font-semibold mb-2">获取新闻失败</h3>
             <p className="text-sm">{error}</p>
@@ -146,18 +146,18 @@ export default function NewsPanel() {
   }
 
   return (
-    <div className="p-6">
-      <div className="grid grid-cols-2 gap-6">
-        <div>
+    <div className="p-2">
+      <div className="grid grid-cols-3 gap-2">
+        <div className="col-span-1">
           {loading ? (
             <div className="text-center py-8">
-              <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-              <p className="mt-2 text-muted-foreground">加载中...</p>
+              <div className="inline-block animate-spin rounded-full h-8 w-4 border-b-2 border-blue-600"></div>
+              <p className="mt-2 text-muted-foreground">Fetching...</p>
             </div>
           ) : gmteightNews.length > 0 ? (
             <div>
               <div className="bg-card border border-border rounded-lg overflow-hidden">
-                <div className="max-h-[calc(100vh-16rem)] overflow-y-auto">
+                <div className="max-h-[calc(100vh-8rem)] overflow-y-auto">
                   {gmteightNews.map((news, index) => (
                     <NewsRow
                       key={news.content_id || `${news.title}-${index}`}
@@ -168,7 +168,7 @@ export default function NewsPanel() {
                 </div>
               </div>
 
-              <div className="flex justify-center space-x-2 mt-6">
+              <div className="flex justify-center space-x-2 mt-2">
                 <Button onClick={handleRefresh} disabled={loading} variant="outline">
                   {loading ? 'Loading...' : 'Refresh'}
                 </Button>
@@ -197,23 +197,18 @@ export default function NewsPanel() {
           )}
         </div>
 
-        <div>
-          <div className="bg-card border border-border rounded-lg h-full p-4">
+        <div className="col-span-2">
+          <div className="bg-card border border-border rounded-lg p-4">
             <div className="flex items-center justify-between mb-2">
-              <h2 className="text-lg font-medium">{selectedSymbol ?? 'Select a stock'}</h2>
+              <h2 className="text-lg font-medium">{selectedSymbol === 'IXIC' ? 'IXIC - NASDAQ Composite Index' : selectedSymbol ?? 'Select a stock'}</h2>
               <div className="text-sm text-muted-foreground">click on a stock to view the chart</div>
             </div>
-            <div className="relative w-full h-[420px]">
+            <div className="relative w-full h-[calc(100vh-12rem)]">
               <div
                 ref={chartContainerRef}
                 id={tradingViewContainerId}
                 className="h-full w-full"
               />
-              {!selectedSymbol && (
-                <div className="absolute inset-0 flex items-center justify-center text-sm text-muted-foreground">
-                  Please select a stock from the left to view the chart
-                </div>
-              )}
             </div>
           </div>
         </div>
@@ -227,9 +222,29 @@ function useTradingViewChart(
   containerId: string,
   symbol: string | null
 ) {
-  const theme = React.useMemo<'light' | 'dark'>(() => {
-    if (typeof document === 'undefined') return 'light'
-    return document.documentElement.classList.contains('dark') ? 'dark' : 'light'
+  const [theme, setTheme] = useState<'light' | 'dark'>('dark')
+  
+  useEffect(() => {
+    if (typeof document === 'undefined') {
+      setTheme('dark')
+      return
+    }
+    
+    const updateTheme = () => {
+      setTheme(document.documentElement.classList.contains('dark') ? 'dark' : 'light')
+    }
+    
+    // 初始设置
+    updateTheme()
+    
+    // 监听主题变化
+    const observer = new MutationObserver(updateTheme)
+    observer.observe(document.documentElement, {
+      attributes: true,
+      attributeFilter: ['class']
+    })
+    
+    return () => observer.disconnect()
   }, [])
 
   useEffect(() => {
@@ -262,13 +277,27 @@ function useTradingViewChart(
         timezone: 'America/New_York',
         theme,
         style: '1',
-        locale: 'zh_CN',
+        locale: 'en',
         toolbar_bg: '#f1f3f6',
-        hide_legend: true,
+        hide_legend: false,
         hide_top_toolbar: false,
         allow_symbol_change: false,
         withdateranges: true,
         container_id: widgetContainerId,
+        studies: [
+          {
+            "id": "MASimple@tv-basicstudies",
+            "inputs": {
+              "length": 5
+            }
+          },
+          {
+            "id": "MASimple@tv-basicstudies", 
+            "inputs": {
+              "length": 20
+            }
+          }
+        ]
       })
     }
 

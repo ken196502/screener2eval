@@ -13,9 +13,33 @@ class UserOut(BaseModel):
     initial_capital: float
     current_cash: float
     frozen_cash: float
+    has_password: bool = False  # Indicates if user has set a trading password
 
     class Config:
         from_attributes = True
+
+
+class PasswordSetRequest(BaseModel):
+    password: str
+
+
+class PasswordVerifyRequest(BaseModel):
+    password: str
+
+
+class AuthLoginRequest(BaseModel):
+    username: str
+    password: str
+
+
+class AuthSessionResponse(BaseModel):
+    session_token: str
+    expires_at: str  # ISO format datetime string
+    message: str
+
+
+class AuthVerifyRequest(BaseModel):
+    session_token: str
 
 
 class AccountOverview(BaseModel):

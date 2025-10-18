@@ -15,6 +15,9 @@ class OrderCreate(BaseModel):
     order_type: OrderType
     price: Optional[float] = None
     quantity: int
+    username: Optional[str] = None  # Username for verification (required if no session_token)
+    password: Optional[str] = None  # Trading password (required if no session_token)
+    session_token: Optional[str] = None  # Auth session token (alternative to username+password)
 
     @field_validator("quantity")
     @classmethod

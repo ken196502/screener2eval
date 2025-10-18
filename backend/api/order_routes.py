@@ -13,6 +13,7 @@ from database.connection import SessionLocal
 from database.models import User, Order
 from schemas.order import OrderCreate, OrderOut
 from services.order_matching import create_order, check_and_execute_order, get_pending_orders, cancel_order, process_all_pending_orders
+from repositories.user_repo import verify_user_password, user_has_password, set_user_password, verify_auth_session
 
 logger = logging.getLogger(__name__)
 
@@ -38,6 +39,9 @@ class OrderCreateRequest(BaseModel):
     order_type: str  # MARKET/LIMIT
     price: Optional[float] = None
     quantity: int
+    username: Optional[str] = None  # Username for verification (required if no session_token)
+    password: Optional[str] = None  # Trading password (required if no session_token)
+    session_token: Optional[str] = None  # Auth session token (alternative to username+password)
 
 
 class OrderExecutionResult(BaseModel):
@@ -71,6 +75,35 @@ async def create_new_order(request: OrderCreateRequest, db: Session = Depends(ge
         user = db.query(User).filter(User.id == request.user_id).first()
         if not user:
             raise HTTPException(status_code=404, detail="用户不存在")
+        
+        # 认证验证：支持session_token或用户名+密码两种方式
+        if request.session_token:
+            # 使用会话token认证（写死的180天免密功能）
+            session_user_id = verify_auth_session(db, request.session_token)
+            if session_user_id != request.user_id:
+                raise HTTPException(status_code=401, detail="会话无效或已过期")
+        elif request.username and request.password:
+            # 使用用户名+密码认证
+            if user.username != request.username:
+                raise HTTPException(status_code=401, detail="用户名不匹配")
+            
+            # 密码验证
+            if not user_has_password(db, request.user_id):
+                # 首次交易，设置密码
+                if len(request.password.strip()) < 4:
+                    raise HTTPException(status_code=400, detail="密码长度至少4位")
+                
+                updated_user = set_user_password(db, request.user_id, request.password)
+                if not updated_user:
+                    raise HTTPException(status_code=500, detail="设置交易密码失败")
+                
+                logger.info(f"用户 {request.user_id} 首次交易，已设置交易密码")
+            else:
+                # 验证现有密码
+                if not verify_user_password(db, request.user_id, request.password):
+                    raise HTTPException(status_code=401, detail="交易密码错误")
+        else:
+            raise HTTPException(status_code=400, detail="请提供会话token或用户名+密码")
         
         # 创建订单
         order = create_order(
