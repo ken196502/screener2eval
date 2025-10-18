@@ -146,15 +146,29 @@ class XueqiuMarketData:
                 'indicator': 'kline'  # 简化indicator参数
             }
             
-            response = self.session.get(url, params=params, timeout=10)
-            response.raise_for_status()
+            logger.info(f"请求雪球API: {url} with params: {params}")
             
+            response = self.session.get(url, params=params, timeout=15)  # 增加超时时间
+            
+            # 检查HTTP状态码
+            if response.status_code != 200:
+                logger.error(f"HTTP错误 {response.status_code}: {response.text[:200]}")
+                return None
+                
             data = response.json()
             
+            # 更详细的错误检查
             if data.get('error_code') == 0 or 'data' in data:
-                return data
+                # 检查数据是否有效
+                if 'data' in data and data['data'] and data['data'].get('item'):
+                    return data
+                else:
+                    logger.warning(f"雪球API返回空数据 for {symbol}: {data}")
+                    return None
             else:
-                logger.error(f"雪球API返回错误: {data}")
+                error_code = data.get('error_code', 'unknown')
+                error_desc = data.get('error_description', data.get('error_msg', ''))
+                logger.error(f"雪球API错误 {error_code}: {error_desc}")
                 return None
                 
         except requests.exceptions.RequestException as e:

@@ -77,6 +77,11 @@ def get_kline_data(symbol: str, market: str, period: str = '1m', count: int = 10
     """
     key = f"{symbol}.{market}"
     
+    # 检查雪球cookie是否配置
+    if not _check_xueqiu_cookie_available():
+        logger.warning(f"雪球cookie未配置，无法获取 {key} K线数据")
+        raise Exception(f"雪球cookie未配置，无法获取K线数据。请在设置中配置雪球Cookie。")
+    
     # 直接使用symbol，雪球API可以处理任意美股代码
     xueqiu_symbol = symbol
     
@@ -89,7 +94,12 @@ def get_kline_data(symbol: str, market: str, period: str = '1m', count: int = 10
             raise Exception(f"雪球API返回空的K线数据")
     except Exception as e:
         logger.error(f"从雪球获取K线数据失败: {e}")
-        raise Exception(f"无法获取 {key} 的K线数据: {str(e)}")
+        # 检查是否是cookie相关的错误
+        error_msg = str(e).lower()
+        if "cookie" in error_msg or "unauthorized" in error_msg or "403" in error_msg or "400016" in error_msg:
+            raise Exception(f"雪球cookie可能已过期，请在设置中更新Cookie配置")
+        else:
+            raise Exception(f"无法获取 {key} 的K线数据: {str(e)}")
 
 
 def get_market_status(symbol: str, market: str) -> Dict[str, Any]:

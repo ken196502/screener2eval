@@ -152,6 +152,28 @@ class StockPrice(Base):
     __table_args__ = (UniqueConstraint('symbol', 'market', 'price_date'),)
 
 
+class StockKline(Base):
+    __tablename__ = "stock_klines"
+
+    id = Column(Integer, primary_key=True, index=True)
+    symbol = Column(String(20), nullable=False, index=True)
+    market = Column(String(10), nullable=False, default="US")
+    period = Column(String(10), nullable=False)  # 1m, 5m, 15m, 30m, 1h, 1d
+    timestamp = Column(Integer, nullable=False, index=True)
+    datetime_str = Column(String(50), nullable=False)
+    open_price = Column(DECIMAL(18, 6), nullable=True)
+    high_price = Column(DECIMAL(18, 6), nullable=True)
+    low_price = Column(DECIMAL(18, 6), nullable=True)
+    close_price = Column(DECIMAL(18, 6), nullable=True)
+    volume = Column(DECIMAL(18, 2), nullable=True)
+    amount = Column(DECIMAL(18, 2), nullable=True)
+    change = Column(DECIMAL(18, 6), nullable=True)
+    percent = Column(DECIMAL(10, 4), nullable=True)
+    created_at = Column(TIMESTAMP, server_default=func.current_timestamp())
+
+    __table_args__ = (UniqueConstraint('symbol', 'market', 'period', 'timestamp'),)
+
+
 # US market trading configuration constants
 US_MIN_COMMISSION = 1.0  # $1 minimum commission
 US_COMMISSION_RATE = 0.005  # 0.5% commission rate
