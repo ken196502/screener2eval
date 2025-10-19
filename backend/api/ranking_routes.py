@@ -9,8 +9,9 @@ import requests
 from datetime import datetime, timedelta
 
 from database.connection import get_db
-from database.models import StockKline
-from factors import compute_all_factors, compute_selected_factors, list_factors, get_composite_score_columns
+from database.models import StockKline, SystemConfig
+from factors import compute_all_factors, compute_selected_factors, list_factors
+from services.xueqiu_market_data import get_xueqiu_cookie, update_xueqiu_cookie
 
 router = APIRouter(prefix="/api/ranking", tags=["ranking"])
 
@@ -25,8 +26,13 @@ async def get_available_factors():
     for factor in factors:
         all_columns.extend(factor.columns)
     
-    # Add composite score columns
-    all_columns.extend(get_composite_score_columns())
+    # Add composite score column definition
+    all_columns.append({
+        "key": "综合评分",
+        "label": "综合评分",
+        "type": "score",
+        "sortable": True
+    })
     
     return {
         "success": True,
@@ -117,6 +123,14 @@ async def get_ranking_table(
             "message": "No factor results computed"
         }
     
+    # Calculate composite score if multiple score columns exist
+    score_columns = [col for col in result_df.columns if col.endswith('评分') or 'score' in col.lower()]
+    if len(score_columns) > 0:
+        # Calculate mean of all score columns, ignoring NaN
+        result_df['综合评分'] = result_df[score_columns].mean(axis=1, skipna=True)
+        # Sort by composite score descending
+        result_df = result_df.sort_values('综合评分', ascending=False, na_position='last')
+    
     # Convert to list of dictionaries and limit results
     result_data = result_df.head(limit).to_dict('records')
     
@@ -162,20 +176,33 @@ async def get_available_symbols(
 
 
 @router.get("/stock-info/{symbol}")
-async def get_stock_basic_info(symbol: str):
+async def get_stock_basic_info(symbol: str, db: Session = Depends(get_db)):
     """Get basic information for a stock symbol from xueqiu"""
     try:
-        # Read xueqiu token from cookies file
-        try:
-            from services.cookie_helper import get_xq_cookies
-            cookies = get_xq_cookies()
-            xq_token = None
-            for cookie in cookies:
-                if cookie.get('name') == 'xq_a_token':
-                    xq_token = cookie.get('value')
+        cookie_string = get_xueqiu_cookie()
+        if not cookie_string or "xq_a_token" not in cookie_string:
+            config = (
+                db.query(SystemConfig)
+                .filter(SystemConfig.key == "xueqiu_cookie")
+                .first()
+            )
+            if config and config.value:
+                cookie_string = config.value
+                update_xueqiu_cookie(cookie_string)
+
+        xq_token = None
+        if cookie_string:
+            segments = cookie_string.replace('\n', '; ').split('; ')
+            for segment in segments:
+                segment = segment.strip()
+                if not segment or "=" not in segment:
+                    continue
+                key, value = segment.split("=", 1)
+                if key.strip() == "xq_a_token":
+                    xq_token = value.strip()
                     break
-        except:
-            # Fallback to environment variable or default
+
+        if not xq_token:
             import os
             xq_token = os.getenv('XQ_TOKEN', '')
         
@@ -191,7 +218,7 @@ async def get_stock_basic_info(symbol: str):
         params = {"symbol": symbol}
         headers = {
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
-            "cookie": f"xq_a_token={xq_token};"
+            "cookie": cookie_string if cookie_string else f"xq_a_token={xq_token};"
         }
         
         response = requests.get(url, params=params, headers=headers, timeout=10)

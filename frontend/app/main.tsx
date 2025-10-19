@@ -15,6 +15,7 @@ import TradingPanel from '@/components/trading/TradingPanel'
 import Portfolio from '@/components/portfolio/Portfolio'
 import AssetCurve from '@/components/portfolio/AssetCurve'
 import NewsPanel from '@/components/news/NewsPanel'
+import RankingTable from '@/components/ranking/RankingTable'
 
 interface User {
   id: number
@@ -37,6 +38,7 @@ const PAGE_TITLES: Record<string, string> = {
   news: 'GMT Eight News',
   portfolio: 'Simulated US Stocks Trading',
   'asset-curve': 'Asset Curve Overview',
+  ranking: 'Factor Ranking',
 }
 
 function App() {
@@ -45,7 +47,7 @@ function App() {
   const [positions, setPositions] = useState<Position[]>([])
   const [orders, setOrders] = useState<Order[]>([])
   const [trades, setTrades] = useState<Trade[]>([])
-  const [currentPage, setCurrentPage] = useState<string>('news')
+  const [currentPage, setCurrentPage] = useState<string>('ranking')
   const wsRef = useRef<WebSocket | null>(null)
 
   useEffect(() => {
@@ -120,68 +122,70 @@ function App() {
   if (!userId || !overview) return <div className="p-8">Connecting to trading server...</div>
 
   const renderMainContent = () => {
-    if (currentPage === 'asset-curve') {
-      return (
-        <main className="flex-1 p-6 overflow-auto">
-          <AssetCurve />
-        </main>
-      )
-    }
-    
-    if (currentPage === 'news') {
-      return (
-        <main className="flex-1 overflow-auto">
-          <NewsPanel />
-        </main>
-      )
-    }
-    
-    // Default portfolio page
-    return (
-      <main className="flex-1 p-6 overflow-hidden">
-        <Portfolio
-          user={overview.user}
-          totalAssets={overview.total_assets}
-          positionsValue={overview.positions_value}
-        />
-        <div className="flex gap-6 h-[calc(100vh-400px)] mt-4">
-          {/* Trading Panel - Left Side */}
-          <div className="flex-shrink-0">
-            <TradingPanel
-              onPlace={placeOrder}
+    switch (currentPage) {
+      case 'asset-curve':
+        return (
+          <main className="flex-1 p-6 overflow-auto">
+            <AssetCurve />
+          </main>
+        )
+      case 'news':
+        return (
+          <main className="flex-1 overflow-auto">
+            <NewsPanel />
+          </main>
+        )
+      case 'ranking':
+        return (
+          <main className="flex-1 p-6 overflow-hidden">
+            <RankingTable />
+          </main>
+        )
+      default:
+        return (
+          <main className="flex-1 p-6 overflow-hidden">
+            <Portfolio
               user={overview.user}
-              positions={positions.map(p => ({ symbol: p.symbol, market: p.market, available_quantity: p.available_quantity }))}
-              lastPrices={Object.fromEntries(positions.map(p => [`${p.symbol}.${p.market}`, p.last_price ?? null]))}
+              totalAssets={overview.total_assets}
+              positionsValue={overview.positions_value}
             />
-          </div>
-
-          {/* Tabbed Content - Right Side */}
-          <div className="flex-1 overflow-hidden">
-            <Tabs defaultValue="positions" className="h-full flex flex-col">
-              <TabsList className="grid w-full grid-cols-3">
-                <TabsTrigger value="positions">Positions</TabsTrigger>
-                <TabsTrigger value="orders">Orders</TabsTrigger>
-                <TabsTrigger value="trades">Trades</TabsTrigger>
-              </TabsList>
+            <div className="flex gap-6 h-[calc(100vh-400px)] mt-4">
+              <div className="flex-shrink-0">
+                <TradingPanel
+                  onPlace={placeOrder}
+                  user={overview.user}
+                  positions={positions.map(p => ({ symbol: p.symbol, market: p.market, available_quantity: p.available_quantity }))}
+                  lastPrices={Object.fromEntries(positions.map(p => [`${p.symbol}.${p.market}`, p.last_price ?? null]))}
+                />
+              </div>
 
               <div className="flex-1 overflow-hidden">
-                <TabsContent value="positions" className="h-full overflow-y-auto">
-                  <PositionListWS positions={positions} />
-                </TabsContent>
+                <Tabs defaultValue="positions" className="h-full flex flex-col">
+                  <TabsList className="grid w-full grid-cols-3">
+                    <TabsTrigger value="positions">Positions</TabsTrigger>
+                    <TabsTrigger value="orders">Orders</TabsTrigger>
+                    <TabsTrigger value="trades">Trades</TabsTrigger>
+                  </TabsList>
 
-                <TabsContent value="orders" className="h-full overflow-y-auto">
-                  <OrderBookWS orders={orders} />
-                </TabsContent>
+                  <div className="flex-1 overflow-hidden">
+                    <TabsContent value="positions" className="h-full overflow-y-auto">
+                      <PositionListWS positions={positions} />
+                    </TabsContent>
 
-                <TabsContent value="trades" className="h-full overflow-y-auto">
-                  <TradeHistoryWS trades={trades} />
-                </TabsContent>
+                    <TabsContent value="orders" className="h-full overflow-y-auto">
+                      <OrderBookWS orders={orders} />
+                    </TabsContent>
+
+                    <TabsContent value="trades" className="h-full overflow-y-auto">
+                      <TradeHistoryWS trades={trades} />
+                    </TabsContent>
+                  </div>
+                </Tabs>
               </div>
-            </Tabs>
-          </div>
-        </div>
-      </main>
-    )
+            </div>
+          </main>
+        )
+    }
   }
 
   const pageTitle = PAGE_TITLES[currentPage] ?? PAGE_TITLES.portfolio

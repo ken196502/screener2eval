@@ -1,16 +1,9 @@
-import React, { useState, useEffect, useRef, useMemo } from 'react'
+import React, { useState, useEffect, useMemo } from 'react'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { ExternalLink } from 'lucide-react'
-
-declare global {
-  interface Window {
-    TradingView?: {
-      widget: new (config: Record<string, unknown>) => unknown
-    }
-    __tradingViewScriptLoading?: boolean
-  }
-}
+import StockViewer from '@/components/common/StockViewer'
+import StockViewerDrawer from '@/components/common/StockViewerDrawer'
 
 interface NewsItem {
   content_id?: string
@@ -39,11 +32,18 @@ export default function NewsPanel() {
   const [error, setError] = useState<string | null>(null)
   const [currentPage, setCurrentPage] = useState(1)
   const [selectedSymbol, setSelectedSymbol] = useState<string | null>('IXIC')
-  const chartContainerRef = useRef<HTMLDivElement | null>(null)
-  const tradingViewContainerId = useMemo(
-    () => `tradingview-widget-${Math.random().toString(36).slice(2)}`,
-    []
-  )
+  const [drawerOpen, setDrawerOpen] = useState(false)
+  const [isMobile, setIsMobile] = useState(false)
+
+  // Detect mobile device
+  useEffect(() => {
+    const checkMobile = () => {
+      setIsMobile(window.innerWidth < 768)
+    }
+    checkMobile()
+    window.addEventListener('resize', checkMobile)
+    return () => window.removeEventListener('resize', checkMobile)
+  }, [])
 
   const fetchGmteightNews = async (page: number = 1) => {
     try {
@@ -74,7 +74,7 @@ export default function NewsPanel() {
     fetchGmteightNews(currentPage)
   }, [currentPage])
 
-  useTradingViewChart(chartContainerRef, tradingViewContainerId, selectedSymbol)
+
 
   const handleRefresh = () => {
     fetchGmteightNews(currentPage)
@@ -84,8 +84,48 @@ export default function NewsPanel() {
     setCurrentPage(newPage)
   }
 
+  const normalizeSymbol = (symbol: string): string => {
+    return symbol.replace(/\.US$/i, '').trim().toUpperCase()
+  }
+
   const handleSelectSymbol = (code: string) => {
-    setSelectedSymbol(normalizeSymbol(code))
+    const normalizedSymbol = normalizeSymbol(code)
+    setSelectedSymbol(normalizedSymbol)
+    if (isMobile) {
+      setDrawerOpen(true)
+    }
+  }
+
+  const allStockCodes = useMemo(() => {
+    const codes: string[] = []
+    gmteightNews.forEach(news => {
+      if (news.stock_codes) {
+        news.stock_codes.forEach(code => {
+          const normalized = normalizeSymbol(code)
+          if (!codes.includes(normalized)) {
+            codes.push(normalized)
+          }
+        })
+      }
+    })
+    return codes
+  }, [gmteightNews])
+
+  const handleDrawerNavigate = (direction: 'prev' | 'next') => {
+    if (allStockCodes.length === 0 || !selectedSymbol) return
+    const currentIndex = allStockCodes.indexOf(selectedSymbol)
+    if (currentIndex === -1) return
+    
+    let newIndex = currentIndex
+    if (direction === 'prev' && currentIndex > 0) {
+      newIndex = currentIndex - 1
+    } else if (direction === 'next' && currentIndex < allStockCodes.length - 1) {
+      newIndex = currentIndex + 1
+    }
+    
+    if (newIndex !== currentIndex) {
+      setSelectedSymbol(allStockCodes[newIndex])
+    }
   }
 
   const NewsRow = ({ news, index }: { news: NewsItem; index: number }) => (
@@ -197,150 +237,29 @@ export default function NewsPanel() {
           )}
         </div>
 
-        <div className="col-span-2">
-          <div className="bg-card border border-border rounded-lg p-4">
-            <div className="flex items-center justify-between mb-2">
-              <h2 className="text-lg font-medium">{selectedSymbol === 'IXIC' ? 'IXIC - NASDAQ Composite Index' : selectedSymbol ?? 'Select a stock'}</h2>
-              <div className="text-sm text-muted-foreground">click on a stock to view the chart</div>
-            </div>
-            <div className="relative w-full h-[calc(100vh-12rem)]">
-              <div
-                ref={chartContainerRef}
-                id={tradingViewContainerId}
-                className="h-full w-full"
+        {!isMobile && (
+          <div className="col-span-2">
+            <div className="bg-card border border-border rounded-lg p-4">
+              <StockViewer
+                symbol={selectedSymbol}
+                title={selectedSymbol === 'IXIC' ? 'IXIC - NASDAQ Composite Index' : selectedSymbol ? `${selectedSymbol} - Stock Chart` : 'Select a stock'}
+                subtitle="click on a stock to view the chart"
               />
             </div>
           </div>
-        </div>
+        )}
       </div>
+
+      {isMobile && (
+        <StockViewerDrawer
+          symbol={selectedSymbol}
+          open={drawerOpen}
+          onOpenChange={setDrawerOpen}
+          stockList={allStockCodes}
+          onNavigate={handleDrawerNavigate}
+          title={selectedSymbol === 'IXIC' ? 'IXIC - NASDAQ Composite Index' : selectedSymbol || 'Stock Viewer'}
+        />
+      )}
     </div>
   )
-}
-
-function useTradingViewChart(
-  containerRef: React.RefObject<HTMLDivElement | null>,
-  containerId: string,
-  symbol: string | null
-) {
-  const [theme, setTheme] = useState<'light' | 'dark'>('dark')
-  
-  useEffect(() => {
-    if (typeof document === 'undefined') {
-      setTheme('dark')
-      return
-    }
-    
-    const updateTheme = () => {
-      setTheme(document.documentElement.classList.contains('dark') ? 'dark' : 'light')
-    }
-    
-    // 初始设置
-    updateTheme()
-    
-    // 监听主题变化
-    const observer = new MutationObserver(updateTheme)
-    observer.observe(document.documentElement, {
-      attributes: true,
-      attributeFilter: ['class']
-    })
-    
-    return () => observer.disconnect()
-  }, [])
-
-  useEffect(() => {
-    const container = containerRef.current
-    if (!container) return
-
-    if (!symbol) {
-      clearContainerChildren(container)
-      return
-    }
-
-    const normalizedSymbol = normalizeSymbol(symbol)
-    const widgetContainerId = containerId
-    container.id = widgetContainerId
-    clearContainerChildren(container)
-
-    let widgetScript: HTMLScriptElement | null = null
-    let pollTimer: number | null = null
-    const initializeWidget = () => {
-      const TradingView = window.TradingView
-      if (!TradingView || typeof TradingView.widget !== 'function') {
-        console.error('TradingView widget unavailable')
-        return
-      }
-
-      new TradingView.widget({
-        autosize: true,
-        symbol: normalizedSymbol,
-        interval: 'D',
-        timezone: 'America/New_York',
-        theme,
-        style: '1',
-        locale: 'en',
-        toolbar_bg: '#f1f3f6',
-        hide_legend: false,
-        hide_top_toolbar: false,
-        allow_symbol_change: false,
-        withdateranges: true,
-        container_id: widgetContainerId,
-        studies: [
-          {
-            "id": "MASimple@tv-basicstudies",
-            "inputs": {
-              "length": 5
-            }
-          },
-          {
-            "id": "MASimple@tv-basicstudies", 
-            "inputs": {
-              "length": 20
-            }
-          }
-        ]
-      })
-    }
-
-    if (window.TradingView && typeof window.TradingView.widget === 'function') {
-      initializeWidget()
-    } else if (!window.__tradingViewScriptLoading) {
-      window.__tradingViewScriptLoading = true
-      widgetScript = document.createElement('script')
-      widgetScript.src = 'https://s3.tradingview.com/tv.js'
-      widgetScript.async = true
-      widgetScript.onload = () => {
-        window.__tradingViewScriptLoading = false
-        initializeWidget()
-      }
-      widgetScript.onerror = () => console.error('Failed to load TradingView script')
-      document.body.appendChild(widgetScript)
-    } else {
-      pollTimer = window.setInterval(() => {
-        if (window.TradingView && typeof window.TradingView.widget === 'function') {
-          window.clearInterval(pollTimer as number)
-          initializeWidget()
-        }
-      }, 100)
-    }
-
-    return () => {
-      if (widgetScript) {
-        widgetScript.onload = null
-      }
-      if (pollTimer !== null) {
-        window.clearInterval(pollTimer)
-      }
-      clearContainerChildren(container)
-    }
-  }, [containerRef, containerId, symbol, theme])
-}
-
-function normalizeSymbol(symbol: string): string {
-  return symbol.replace(/\.US$/i, '').trim().toUpperCase()
-}
-
-function clearContainerChildren(container: HTMLElement) {
-  while (container.firstChild) {
-    container.removeChild(container.firstChild)
-  }
 }

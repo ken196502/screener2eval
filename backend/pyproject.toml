@@ -12,6 +12,7 @@ dependencies = [
     "websockets",
     "requests",
     "apscheduler",
+    "pandas>=2.3.3",
 ]
 
 [tool.uv]

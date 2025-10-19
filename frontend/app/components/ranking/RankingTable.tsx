@@ -1,17 +1,10 @@
-import React, { useState, useEffect, useRef, useMemo } from 'react'
+import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
 import { Button } from '@/components/ui/button'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { RefreshCw, TrendingUp, TrendingDown } from 'lucide-react'
-
-declare global {
-  interface Window {
-    TradingView?: {
-      widget: new (config: Record<string, unknown>) => unknown
-    }
-    __tradingViewScriptLoading?: boolean
-  }
-}
+import StockViewer from '@/components/common/StockViewer'
+import StockViewerDrawer from '@/components/common/StockViewerDrawer'
 
 interface Factor {
   id: string
@@ -41,11 +34,6 @@ interface RankingData {
   [key: string]: any
 }
 
-interface StockInfo {
-  item: string
-  value: string
-}
-
 interface RankingTableProps {
   className?: string
 }
@@ -61,22 +49,24 @@ const RankingTable: React.FC<RankingTableProps> = ({ className = "" }) => {
   const [sortColumn, setSortColumn] = useState<string>('综合评分')
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc')
   const [selectedSymbol, setSelectedSymbol] = useState<string | null>('NVDA')
-  const [stockInfo, setStockInfo] = useState<StockInfo[]>([])
-  const [stockInfoLoading, setStockInfoLoading] = useState(false)
-  const [stockInfoError, setStockInfoError] = useState<string | null>(null)
-  const chartContainerRef = useRef<HTMLDivElement | null>(null)
-  const tradingViewContainerId = useMemo(
-    () => `tradingview-widget-${Math.random().toString(36).slice(2)}`,
-    []
-  )
+  const [drawerOpen, setDrawerOpen] = useState(false)
+  const [isMobile, setIsMobile] = useState(false)
+  const tableContainerRef = useRef<HTMLDivElement | null>(null)
+  const hasFocusedTableRef = useRef(false)
+
+  // Detect mobile device
+  useEffect(() => {
+    const checkMobile = () => {
+      setIsMobile(window.innerWidth < 768)
+    }
+    checkMobile()
+    window.addEventListener('resize', checkMobile)
+    return () => window.removeEventListener('resize', checkMobile)
+  }, [])
 
   // Fetch available factors on component mount
   useEffect(() => {
     fetchFactors()
-    // Fetch default stock info
-    if (selectedSymbol) {
-      fetchStockInfo(selectedSymbol)
-    }
   }, [])
 
   // Auto-fetch ranking data when factors are selected
@@ -85,9 +75,6 @@ const RankingTable: React.FC<RankingTableProps> = ({ className = "" }) => {
       fetchRankingData()
     }
   }, [selectedFactors, days])
-
-  // Initialize TradingView chart
-  useTradingViewChart(chartContainerRef, tradingViewContainerId, selectedSymbol)
 
   const fetchFactors = async () => {
     try {
@@ -157,62 +144,101 @@ const RankingTable: React.FC<RankingTableProps> = ({ className = "" }) => {
     }
   }
 
-  const fetchStockInfo = async (symbol: string) => {
-    if (!symbol) return
+  const normalizeSymbol = (symbol: string): string => {
+    return symbol.replace(/\.US$/i, '').trim().toUpperCase()
+  }
 
-    setStockInfoLoading(true)
-    setStockInfoError(null)
+  const handleSelectSymbol = useCallback((code: string) => {
+    const normalizedSymbol = normalizeSymbol(code)
+    setSelectedSymbol(normalizedSymbol)
+    if (isMobile) {
+      setDrawerOpen(true)
+    }
+    tableContainerRef.current?.focus()
+  }, [isMobile])
 
-    try {
-      const response = await fetch(`/api/ranking/stock-info/${symbol}`)
-      const data = await response.json()
-      
-      if (data.success) {
-        setStockInfo(data.data || [])
-      } else {
-        setStockInfoError(data.error || 'Failed to fetch stock info')
-        setStockInfo([])
-      }
-    } catch (err) {
-      setStockInfoError('Failed to connect to server')
-      setStockInfo([])
-      console.error('Error fetching stock info:', err)
-    } finally {
-      setStockInfoLoading(false)
+  const handleDrawerNavigate = (direction: 'prev' | 'next') => {
+    if (sortedData.length === 0) return
+    const normalizedSelection = selectedSymbol ? selectedSymbol : null
+    const currentIndex = normalizedSelection
+      ? sortedData.findIndex(row => normalizeSymbol(row.代码) === normalizedSelection)
+      : -1
+    
+    let newIndex = currentIndex
+    if (direction === 'prev' && currentIndex > 0) {
+      newIndex = currentIndex - 1
+    } else if (direction === 'next' && currentIndex < sortedData.length - 1) {
+      newIndex = currentIndex + 1
+    }
+    
+    if (newIndex !== currentIndex && newIndex >= 0) {
+      handleSelectSymbol(sortedData[newIndex].代码)
     }
   }
 
-  const handleSelectSymbol = (code: string) => {
-    const normalizedSymbol = normalizeSymbol(code)
-    setSelectedSymbol(normalizedSymbol)
-    fetchStockInfo(code) // Use original code for API call
-  }
-
-  const getSortedData = () => {
+  const sortedData = useMemo(() => {
     if (!sortColumn || rankingData.length === 0) return rankingData
 
     return [...rankingData].sort((a, b) => {
       const aVal = a[sortColumn]
       const bVal = b[sortColumn]
 
-      // Handle null/undefined values
       if (aVal == null && bVal == null) return 0
       if (aVal == null) return 1
       if (bVal == null) return -1
 
-      // Numeric comparison
       if (typeof aVal === 'number' && typeof bVal === 'number') {
         return sortDirection === 'asc' ? aVal - bVal : bVal - aVal
       }
 
-      // String comparison
       const aStr = String(aVal)
       const bStr = String(bVal)
       return sortDirection === 'asc'
         ? aStr.localeCompare(bStr)
         : bStr.localeCompare(aStr)
     })
-  }
+  }, [rankingData, sortColumn, sortDirection])
+
+  useEffect(() => {
+    const container = tableContainerRef.current
+    if (!container || sortedData.length === 0) return
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== 'ArrowDown' && event.key !== 'ArrowUp') return
+      const normalizedSelection = selectedSymbol ? selectedSymbol : null
+      const currentIndex = normalizedSelection
+        ? sortedData.findIndex(row => normalizeSymbol(row.代码) === normalizedSelection)
+        : -1
+
+      const targetByIndex = (index: number) => {
+        const normalizedIndex = Math.min(Math.max(index, 0), sortedData.length - 1)
+        return sortedData[normalizedIndex]
+      }
+
+      if (event.key === 'ArrowDown') {
+        event.preventDefault()
+        const nextIndex = currentIndex >= 0 ? currentIndex + 1 : 0
+        const target = targetByIndex(nextIndex)
+        handleSelectSymbol(target.代码)
+      } else if (event.key === 'ArrowUp') {
+        event.preventDefault()
+        if (currentIndex <= 0) return
+        const nextIndex = currentIndex - 1
+        const target = targetByIndex(nextIndex)
+        handleSelectSymbol(target.代码)
+      }
+    }
+
+    container.addEventListener('keydown', handleKeyDown)
+    return () => container.removeEventListener('keydown', handleKeyDown)
+  }, [handleSelectSymbol, selectedSymbol, sortedData])
+
+  useEffect(() => {
+    if (hasFocusedTableRef.current) return
+    if (sortedData.length === 0) return
+    tableContainerRef.current?.focus()
+    hasFocusedTableRef.current = true
+  }, [sortedData])
 
   const formatValue = (value: any, type?: string) => {
     if (value == null) return '-'
@@ -266,9 +292,11 @@ const RankingTable: React.FC<RankingTableProps> = ({ className = "" }) => {
     return sortDirection === 'asc' ? <TrendingUp className="w-4 h-4" /> : <TrendingDown className="w-4 h-4" />
   }
 
+  const stockList = useMemo(() => sortedData.map(row => normalizeSymbol(row.代码)), [sortedData])
+
   return (
     <div className={`flex h-full ${className}`}>
-      <div className="flex-1 pr-4">
+      <div className={isMobile ? "w-full" : "flex-1 pr-4"}>
 
         {/* Controls */}
         <div className="flex gap-4 mb-4 flex-wrap">
@@ -305,9 +333,9 @@ const RankingTable: React.FC<RankingTableProps> = ({ className = "" }) => {
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">全部因子</SelectItem>
-                <SelectItem value="momentum">动量因子</SelectItem>
-                <SelectItem value="support">支撑因子</SelectItem>
+                <SelectItem value="all">All Factors</SelectItem>
+                <SelectItem value="momentum">Momentum</SelectItem>
+                <SelectItem value="support">Support</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -332,13 +360,17 @@ const RankingTable: React.FC<RankingTableProps> = ({ className = "" }) => {
         {loading && (
           <div className="flex items-center justify-center py-8">
             <RefreshCw className="w-6 h-6 animate-spin mr-2" />
-            <span>正在计算因子排行...</span>
+            <span>Calculating...</span>
           </div>
         )}
 
         {/* Table */}
         {!loading && rankingData.length > 0 && (
-          <div className="border rounded-md">
+          <div
+            ref={tableContainerRef}
+            className="border rounded-md h-[calc(100vh-12rem)] overflow-y-auto focus:outline-none"
+            tabIndex={0}
+          >
             <Table>
               <TableHeader>
                 <TableRow>
@@ -357,8 +389,13 @@ const RankingTable: React.FC<RankingTableProps> = ({ className = "" }) => {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {getSortedData().map((row, index) => (
-                  <TableRow key={row.代码 || index}>
+                {sortedData.map((row, index) => {
+                  const isSelected = normalizeSymbol(row.代码) === selectedSymbol
+                  return (
+                    <TableRow
+                      key={row.代码 || index}
+                      className={`${isSelected ? 'bg-muted' : ''} cursor-pointer`}
+                    >
                     {getColumns().map((column) => (
                       <TableCell key={column}>
                         {column === '代码' ? (
@@ -373,8 +410,9 @@ const RankingTable: React.FC<RankingTableProps> = ({ className = "" }) => {
                         )}
                       </TableCell>
                     ))}
-                  </TableRow>
-                ))}
+                    </TableRow>
+                  )
+                })}
               </TableBody>
             </Table>
           </div>
@@ -397,187 +435,26 @@ const RankingTable: React.FC<RankingTableProps> = ({ className = "" }) => {
         )}
       </div>
 
-      <div className="flex-1 border-l pl-4">
-        <div className="flex items-center justify-between mb-2">
-          <h2 className="text-lg font-medium">
-            {selectedSymbol ? `${selectedSymbol} - Stock Chart` : 'Select a stock'}
-          </h2>
-          <div className="text-sm text-muted-foreground">click on a stock code to view chart</div>
-        </div>
-        <div className="relative w-full h-[50vh] mb-4">
-          <div
-            ref={chartContainerRef}
-            id={tradingViewContainerId}
-            className="h-full w-full"
+      {!isMobile && (
+        <div className="flex-1 border-l pl-4">
+          <StockViewer 
+            symbol={selectedSymbol}
+            subtitle="click on a stock code to view chart"
           />
         </div>
+      )}
 
-        {/* Stock Info Section */}
-        <div className="border-t pt-4">
-          
-          {stockInfoLoading && (
-            <div className="flex items-center justify-center py-4">
-              <RefreshCw className="w-4 h-4 animate-spin mr-2" />
-              <span className="text-sm">Loading stock info...</span>
-            </div>
-          )}
-
-          {stockInfoError && (
-            <div className="text-red-700">
-              {stockInfoError}
-            </div>
-          )}
-
-          {!stockInfoLoading && !stockInfoError && stockInfo.length > 0 && (
-            <div className="max-h-[35vh] overflow-y-auto">
-              <div className="grid grid-cols-1 gap-1 text-sm">
-                {stockInfo.map((info, index) => (
-                  <div key={index} className="flex justify-between py-1 border-b border-gray-500 last:border-b-0">
-                    <span className="font-medium text-gray-600 truncate mr-2">{info.item}:</span>
-                    <span >{info.value || '-'}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {!stockInfoLoading && !stockInfoError && stockInfo.length === 0 && selectedSymbol && (
-            <div className="text-center py-4 text-gray-500 text-sm">
-              No information available for {selectedSymbol}
-            </div>
-          )}
-
-          {!selectedSymbol && (
-            <div className="text-center py-4 text-gray-500 text-sm">
-              Select a stock to view information
-            </div>
-          )}
-        </div>
-      </div>
+      {isMobile && (
+        <StockViewerDrawer
+          symbol={selectedSymbol}
+          open={drawerOpen}
+          onOpenChange={setDrawerOpen}
+          stockList={stockList}
+          onNavigate={handleDrawerNavigate}
+        />
+      )}
     </div>
   )
-}
-
-function useTradingViewChart(
-  containerRef: React.RefObject<HTMLDivElement | null>,
-  containerId: string,
-  symbol: string | null
-) {
-  const [theme, setTheme] = useState<'light' | 'dark'>('dark')
-
-  useEffect(() => {
-    if (typeof document === 'undefined') {
-      setTheme('dark')
-      return
-    }
-
-    const updateTheme = () => {
-      setTheme(document.documentElement.classList.contains('dark') ? 'dark' : 'light')
-    }
-
-    // 初始设置
-    updateTheme()
-
-    // 监听主题变化
-    const observer = new MutationObserver(updateTheme)
-    observer.observe(document.documentElement, {
-      attributes: true,
-      attributeFilter: ['class']
-    })
-
-    return () => observer.disconnect()
-  }, [])
-
-  useEffect(() => {
-    const container = containerRef.current
-    if (!container) return
-
-    if (!symbol) {
-      clearContainerChildren(container)
-      return
-    }
-
-    const normalizedSymbol = normalizeSymbol(symbol)
-    const widgetContainerId = containerId
-    container.id = widgetContainerId
-    clearContainerChildren(container)
-
-    let widgetScript: HTMLScriptElement | null = null
-    let pollTimer: number | null = null
-    const initializeWidget = () => {
-      const TradingView = window.TradingView
-      if (!TradingView || typeof TradingView.widget !== 'function') {
-        console.error('TradingView widget unavailable')
-        return
-      }
-
-      new TradingView.widget({
-        autosize: true,
-        symbol: normalizedSymbol,
-        interval: 'D',
-        timezone: 'America/New_York',
-        theme,
-        style: '1',
-        locale: 'en',
-        toolbar_bg: '#f1f3f6',
-        hide_legend: false,
-        hide_top_toolbar: false,
-        allow_symbol_change: false,
-        withdateranges: true,
-        container_id: widgetContainerId,
-        studies: [
-          {
-            "id": "MASimple@tv-basicstudies",
-            "inputs": {
-              "length": 5
-            }
-          },
-          {
-            "id": "MASimple@tv-basicstudies",
-            "inputs": {
-              "length": 20
-            }
-          }
-        ]
-      })
-    }
-
-    if (window.TradingView && typeof window.TradingView.widget === 'function') {
-      initializeWidget()
-    } else if (!window.__tradingViewScriptLoading) {
-      window.__tradingViewScriptLoading = true
-      widgetScript = document.createElement('script')
-      widgetScript.src = 'https://s3.tradingview.com/tv.js'
-      widgetScript.async = true
-      widgetScript.onload = () => {
-        window.__tradingViewScriptLoading = false
-        initializeWidget()
-      }
-      widgetScript.onerror = () => console.error('Failed to load TradingView script')
-      document.body.appendChild(widgetScript)
-    } else {
-      pollTimer = window.setInterval(() => {
-        if (window.TradingView && typeof window.TradingView.widget === 'function') {
-          window.clearInterval(pollTimer as number)
-          initializeWidget()
-        }
-      }, 100)
-    }
-
-    return () => {
-      if (widgetScript) {
-        widgetScript.onload = null
-      }
-      if (pollTimer !== null) {
-        window.clearInterval(pollTimer)
-      }
-      clearContainerChildren(container)
-    }
-  }, [containerRef, containerId, symbol, theme])
-}
-
-function normalizeSymbol(symbol: string): string {
-  return symbol.replace(/\.US$/i, '').trim().toUpperCase()
 }
 
 function clearContainerChildren(container: HTMLElement) {

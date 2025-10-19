@@ -82,12 +82,14 @@ from api.order_routes import router as order_router
 from api.account_routes import router as account_router
 from api.config_routes import router as config_router
 from api.news_routes import router as news_router
+from api.ranking_routes import router as ranking_router
 
 app.include_router(market_data_router)
 app.include_router(order_router)
 app.include_router(account_router)
 app.include_router(config_router)
 app.include_router(news_router)
+app.include_router(ranking_router)
 
 # WebSocket endpoint
 from api.ws import websocket_endpoint
