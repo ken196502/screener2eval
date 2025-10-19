@@ -25,3 +25,9 @@ services:
       - "traefik.http.routers.app.entrypoints=websecure"
       - "traefik.http.routers.app.tls.certresolver=letsencrypt"
       - "traefik.http.services.app.loadbalancer.server.port=2611"
+    networks:
+      - traefik
+
+networks:
+  traefik:
+    external: true
