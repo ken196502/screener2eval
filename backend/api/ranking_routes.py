@@ -9,9 +9,8 @@ import requests
 from datetime import datetime, timedelta
 
 from database.connection import get_db
-from database.models import StockKline, SystemConfig
+from database.models import StockKline
 from factors import compute_all_factors, compute_selected_factors, list_factors
-from services.xueqiu_market_data import get_xueqiu_cookie, update_xueqiu_cookie
 
 router = APIRouter(prefix="/api/ranking", tags=["ranking"])
 
@@ -177,113 +176,83 @@ async def get_available_symbols(
 
 @router.get("/stock-info/{symbol}")
 async def get_stock_basic_info(symbol: str, db: Session = Depends(get_db)):
-    """Get basic information for a stock symbol from xueqiu"""
+    """Get basic information for a stock symbol using yfinance"""
     try:
-        cookie_string = get_xueqiu_cookie()
-        if not cookie_string or "xq_a_token" not in cookie_string:
-            config = (
-                db.query(SystemConfig)
-                .filter(SystemConfig.key == "xueqiu_cookie")
-                .first()
-            )
-            if config and config.value:
-                cookie_string = config.value
-                update_xueqiu_cookie(cookie_string)
-
-        xq_token = None
-        if cookie_string:
-            segments = cookie_string.replace('\n', '; ').split('; ')
-            for segment in segments:
-                segment = segment.strip()
-                if not segment or "=" not in segment:
-                    continue
-                key, value = segment.split("=", 1)
-                if key.strip() == "xq_a_token":
-                    xq_token = value.strip()
-                    break
-
-        if not xq_token:
-            import os
-            xq_token = os.getenv('XQ_TOKEN', '')
+        import yfinance as yf
         
-        if not xq_token:
+        # Create ticker object
+        ticker = yf.Ticker(symbol)
+        
+        # Get company info
+        info = ticker.info
+        
+        if not info:
             return {
                 "success": False,
-                "error": "XQ token not available",
-                "data": []
-            }
-        
-        # API call to xueqiu
-        url = "https://stock.xueqiu.com/v5/stock/f10/us/company.json"
-        params = {"symbol": symbol}
-        headers = {
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
-            "cookie": cookie_string if cookie_string else f"xq_a_token={xq_token};"
-        }
-        
-        response = requests.get(url, params=params, headers=headers, timeout=10)
-        
-        if response.status_code != 200:
-            return {
-                "success": False,
-                "error": f"HTTP {response.status_code}",
-                "data": []
-            }
-        
-        data_json = response.json()
-        
-        if "data" not in data_json:
-            return {
-                "success": False,
-                "error": "No data in response",
+                "error": "No data available for symbol",
                 "data": []
             }
         
         # Convert to list of key-value pairs
         stock_info = []
-        raw_data = data_json["data"]
         
-        # Parse the company data
-        if "company" in raw_data:
-            company_data = raw_data["company"]
-            
-            # Handle both dict and string formats
-            if isinstance(company_data, dict):
-                company_dict = company_data
-            elif isinstance(company_data, str):
-                try:
-                    company_dict = eval(company_data)
-                except:
-                    company_dict = {}
-            else:
-                company_dict = {}
-            
-            # 合并公司信息到公司简介
-            profile_parts = []
-            
-            if "org_cn_introduction" in company_dict and company_dict["org_cn_introduction"]:
-                profile_parts.append(company_dict["org_cn_introduction"])
-                
-            if "main_operation_business" in company_dict and company_dict["main_operation_business"]:
-                profile_parts.append(f"【主营业务】{company_dict['main_operation_business']}")
-                
-            if "operating_scope" in company_dict and company_dict["operating_scope"]:
-                profile_parts.append(f"【经营范围】{company_dict['operating_scope']}")
-            
-            if profile_parts:
-                combined_profile = "\n\n".join(profile_parts)
-                stock_info.append({"item": "公司简介", "value": combined_profile})
-            if "staff_num" in company_dict and company_dict["staff_num"]:
-                stock_info.append({"item": "员工人数", "value": f"{company_dict['staff_num']:,}"})
-            if "org_website" in company_dict and company_dict["org_website"]:
-                stock_info.append({"item": "官方网站", "value": company_dict["org_website"]})
+        # Add company description/intro
+        if "longBusinessSummary" in info and info["longBusinessSummary"]:
+            stock_info.append({
+                "item": "Business Summary", 
+                "value": info["longBusinessSummary"]
+            })
         
-        # Add any other fields from raw data
-        for key, value in raw_data.items():
-            if key != "company":  # Skip company as we handled it above
+        # Add key company information
+        key_fields = [
+            ("Company Name", "longName"),
+            ("Sector", "sector"),
+            ("Industry", "industry"),
+            ("Website", "website"),
+            ("Country", "country"),
+            ("Employees", "fullTimeEmployees"),
+            ("Market Cap", "marketCap"),
+            ("P/E Ratio", "trailingPE"),
+            ("Forward P/E", "forwardPE"),
+            ("PEG Ratio", "pegRatio"),
+            ("Price to Book", "priceToBook"),
+            ("Dividend Yield", "dividendYield"),
+            ("Beta", "beta"),
+            ("52 Week High", "fiftyTwoWeekHigh"),
+            ("52 Week Low", "fiftyTwoWeekLow"),
+            ("Volume", "volume"),
+            ("Average Volume", "averageVolume"),
+            ("Currency", "currency"),
+            ("Exchange", "exchange"),
+            ("Quote Type", "quoteType")
+        ]
+        
+        for display_name, field_name in key_fields:
+            if field_name in info and info[field_name] is not None:
+                value = info[field_name]
+                
+                # Format numeric values
+                if isinstance(value, (int, float)):
+                    if field_name == "marketCap":
+                        # Format market cap in billions/millions
+                        if value >= 1e9:
+                            value = f"${value/1e9:.2f}B"
+                        elif value >= 1e6:
+                            value = f"${value/1e6:.2f}M"
+                        else:
+                            value = f"${value:,.0f}"
+                    elif field_name in ["trailingPE", "forwardPE", "pegRatio", "priceToBook", "beta", 
+                                      "dividendYield", "fiftyTwoWeekHigh", "fiftyTwoWeekLow"]:
+                        if field_name == "dividendYield":
+                            value = f"{value*100:.2f}%"
+                        else:
+                            value = f"{value:.2f}"
+                    elif field_name in ["volume", "averageVolume", "fullTimeEmployees"]:
+                        value = f"{value:,}"
+                
                 stock_info.append({
-                    "item": key,
-                    "value": str(value) if value is not None else ""
+                    "item": display_name,
+                    "value": str(value)
                 })
         
         return {
@@ -292,15 +261,15 @@ async def get_stock_basic_info(symbol: str, db: Session = Depends(get_db)):
             "symbol": symbol
         }
         
-    except requests.RequestException as e:
+    except ImportError:
         return {
             "success": False,
-            "error": f"Request failed: {str(e)}",
+            "error": "yfinance not available",
             "data": []
         }
     except Exception as e:
         return {
             "success": False,
-            "error": f"Unexpected error: {str(e)}",
+            "error": f"Error fetching data: {str(e)}",
             "data": []
         }

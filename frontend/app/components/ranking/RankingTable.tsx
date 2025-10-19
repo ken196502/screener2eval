@@ -257,8 +257,11 @@ const RankingTable: React.FC<RankingTableProps> = ({ className = "" }) => {
     if (rankingData.length === 0) return ['代码']
 
     const allColumns = Object.keys(rankingData[0])
-    // Move 代码 to the front
-    return ['代码', ...allColumns.filter(col => col !== '代码')]
+    // Priority order: 代码, 综合评分, then other columns
+    const priorityColumns = ['代码', '综合评分']
+    const otherColumns = allColumns.filter(col => !priorityColumns.includes(col))
+    
+    return [...priorityColumns, ...otherColumns].filter(col => allColumns.includes(col))
   }
 
   const getColumnLabel = (column: string) => {
@@ -401,7 +404,7 @@ const RankingTable: React.FC<RankingTableProps> = ({ className = "" }) => {
                         {column === '代码' ? (
                           <button
                             onClick={() => handleSelectSymbol(row[column])}
-                            className="font-mono font-bold hover:text-blue-800 hover:underline cursor-pointer"
+                            className="font-mono font-bold hover:text-teal-500 hover:underline cursor-pointer"
                           >
                             {row[column]}
                           </button>

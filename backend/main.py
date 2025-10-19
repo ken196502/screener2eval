@@ -17,7 +17,7 @@ async def health_check():
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:2621", "http://localhost:2611"],
+    allow_origins=["*"],  # 允许所有来源，或指定具体域名
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

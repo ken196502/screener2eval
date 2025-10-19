@@ -97,8 +97,8 @@ def compute_support(history: Dict[str, pd.DataFrame], top_spot: Optional[pd.Data
         
         rows.append({
             "代码": code, 
-            "支撑因子": support_factor,
-            f"最长K线天数_{window_size}日": days_from_longest,
+            "Support": support_factor,
+            f"D From Max Candel_{window_size}日": days_from_longest,
         })
     
     return pd.DataFrame(rows)
@@ -112,20 +112,20 @@ def compute_support_with_default_window(history: Dict[str, pd.DataFrame], top_sp
     result = compute_support(history, top_spot, DEFAULT_WINDOW_SIZE)
     
     # Rename the dynamic column to a fixed name for the factor definition
-    dynamic_col = f"最长K线天数_{DEFAULT_WINDOW_SIZE}日"
+    dynamic_col = f"D From Max Candel_{DEFAULT_WINDOW_SIZE}日"
     if dynamic_col in result.columns:
-        result = result.rename(columns={dynamic_col: "最长K线天数"})
+        result = result.rename(columns={dynamic_col: "D From Max Candel"})
     
     return result
 
 SUPPORT_FACTOR = Factor(
     id="support",
-    name="支撑因子",
+    name="Support",
     description=f"基于最长K线实体距离的支撑强度：计算{DEFAULT_WINDOW_SIZE}日窗口内最长K线实体（相对昨收幅度）到当前的天数，天数越多支撑越强，值越大越好",
     columns=[
-        {"key": "支撑因子", "label": "支撑因子", "type": "number", "sortable": True},
+        {"key": "Support", "label": "Support", "type": "number", "sortable": True},
         # {"key": "支撑评分", "label": "支撑评分", "type": "score", "sortable": True},
-        {"key": "最长K线天数", "label": f"{DEFAULT_WINDOW_SIZE}日最长K线距今", "type": "number", "sortable": True},
+        {"key": "D From Max Candel", "label": f"{DEFAULT_WINDOW_SIZE}D from Max Candel", "type": "number", "sortable": True},
     ],
     compute=lambda history, top_spot=None: compute_support_with_default_window(history, top_spot),
 )

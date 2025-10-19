@@ -1,24 +1,15 @@
 from typing import Dict, List, Any
 import logging
-from .xueqiu_market_data import get_last_price_from_xueqiu, get_kline_data_from_xueqiu
+from .yfinance_market_data import get_last_price_from_yfinance, get_kline_data_from_yfinance, yfinance_client
 
 logger = logging.getLogger(__name__)
 
-# 雪球API可以直接处理美股代码，无需映射表
-
-
-def _check_xueqiu_cookie_available() -> bool:
-    """检查雪球cookie是否可用"""
-    try:
-        from services.xueqiu_market_data import _xueqiu_cookie_string
-        return _xueqiu_cookie_string is not None and _xueqiu_cookie_string.strip() != ""
-    except Exception:
-        return False
+# yfinance可以直接处理美股代码，无需cookie配置
 
 
 def get_last_price(symbol: str, market: str) -> float:
     """
-    从雪球获取最新价格
+    从yfinance获取最新价格
     
     Args:
         symbol: 股票代码
@@ -32,36 +23,23 @@ def get_last_price(symbol: str, market: str) -> float:
     """
     key = f"{symbol}.{market}"
     
-    # 检查雪球cookie是否配置
-    if not _check_xueqiu_cookie_available():
-        logger.warning(f"雪球cookie未配置，无法获取 {key} 实时价格")
-        raise Exception(f"雪球cookie未配置，无法获取实时行情数据。请在设置中配置雪球Cookie。")
-    
     logger.info(f"正在获取 {key} 的实时价格...")
     
-    # 直接使用symbol，雪球API可以处理任意美股代码
-    xueqiu_symbol = symbol
-    
     try:
-        real_price = get_last_price_from_xueqiu(xueqiu_symbol, market)
+        real_price = get_last_price_from_yfinance(symbol, market)
         if real_price and real_price > 0:
-            logger.info(f"从雪球获取 {key} 实时价格: {real_price}")
+            logger.info(f"从yfinance获取 {key} 实时价格: {real_price}")
             return real_price
         else:
-            raise Exception(f"雪球API返回无效价格: {real_price}")
+            raise Exception(f"yfinance返回无效价格: {real_price}")
     except Exception as e:
-        logger.error(f"从雪球获取价格失败: {e}")
-        # 检查是否是cookie相关的错误
-        error_msg = str(e).lower()
-        if "cookie" in error_msg or "unauthorized" in error_msg or "403" in error_msg:
-            raise Exception(f"雪球cookie可能已过期，请在设置中更新Cookie配置")
-        else:
-            raise Exception(f"无法获取 {key} 的实时价格: {str(e)}")
+        logger.error(f"从yfinance获取价格失败: {e}")
+        raise Exception(f"无法获取 {key} 的实时价格: {str(e)}")
 
 
-def get_kline_data(symbol: str, market: str, period: str = '1m', count: int = 100) -> List[Dict[str, Any]]:
+def get_kline_data(symbol: str, market: str, period: str = '1d', count: int = 100) -> List[Dict[str, Any]]:
     """
-    从雪球获取K线数据
+    从yfinance获取K线数据
     
     Args:
         symbol: 股票代码
@@ -77,34 +55,21 @@ def get_kline_data(symbol: str, market: str, period: str = '1m', count: int = 10
     """
     key = f"{symbol}.{market}"
     
-    # 检查雪球cookie是否配置
-    if not _check_xueqiu_cookie_available():
-        logger.warning(f"雪球cookie未配置，无法获取 {key} K线数据")
-        raise Exception(f"雪球cookie未配置，无法获取K线数据。请在设置中配置雪球Cookie。")
-    
-    # 直接使用symbol，雪球API可以处理任意美股代码
-    xueqiu_symbol = symbol
-    
     try:
-        kline_data = get_kline_data_from_xueqiu(xueqiu_symbol, period, count)
+        kline_data = get_kline_data_from_yfinance(symbol, period, count)
         if kline_data:
-            logger.info(f"从雪球获取 {key} K线数据，共 {len(kline_data)} 条")
+            logger.info(f"从yfinance获取 {key} K线数据，共 {len(kline_data)} 条")
             return kline_data
         else:
-            raise Exception(f"雪球API返回空的K线数据")
+            raise Exception(f"yfinance返回空的K线数据")
     except Exception as e:
-        logger.error(f"从雪球获取K线数据失败: {e}")
-        # 检查是否是cookie相关的错误
-        error_msg = str(e).lower()
-        if "cookie" in error_msg or "unauthorized" in error_msg or "403" in error_msg or "400016" in error_msg:
-            raise Exception(f"雪球cookie可能已过期，请在设置中更新Cookie配置")
-        else:
-            raise Exception(f"无法获取 {key} 的K线数据: {str(e)}")
+        logger.error(f"从yfinance获取K线数据失败: {e}")
+        raise Exception(f"无法获取 {key} 的K线数据: {str(e)}")
 
 
 def get_market_status(symbol: str, market: str) -> Dict[str, Any]:
     """
-    从雪球获取市场状态
+    从yfinance获取市场状态
     
     Args:
         symbol: 股票代码
@@ -116,16 +81,11 @@ def get_market_status(symbol: str, market: str) -> Dict[str, Any]:
     Raises:
         Exception: 当无法获取市场状态时抛出异常
     """
-    from .xueqiu_market_data import xueqiu_client
-    
     key = f"{symbol}.{market}"
     
-    # 直接使用symbol，雪球API可以处理任意美股代码
-    xueqiu_symbol = symbol
-    
     try:
-        status_data = xueqiu_client.get_market_status(xueqiu_symbol)
-        logger.info(f"从雪球获取 {key} 市场状态: {status_data.get('market_status')}")
+        status_data = yfinance_client.get_market_status(symbol)
+        logger.info(f"从yfinance获取 {key} 市场状态: {status_data.get('market_status')}")
         return status_data
     except Exception as e:
         logger.error(f"获取市场状态失败: {e}")

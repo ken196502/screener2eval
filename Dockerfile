@@ -21,7 +21,7 @@ WORKDIR /app/frontend
 RUN pnpm run build
 
 # Stage 2: Setup Python backend
-FROM python:3.11-slim AS backend
+FROM python:3.13-slim AS backend
 
 WORKDIR /app
 

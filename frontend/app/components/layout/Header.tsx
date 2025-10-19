@@ -9,7 +9,7 @@ interface HeaderProps {
 export default function Header({ title = 'Simulated US Stocks Trading' }: HeaderProps) {
   const [theme, setTheme] = useState<'light' | 'dark'>(() => {
     if (typeof document === 'undefined') return 'dark'
-    return document.documentElement.classList.contains('dark') ? 'dark' : 'dark'
+    return document.documentElement.classList.contains('dark') ? 'dark' : 'light'
   })
 
   useEffect(() => {

@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   app:
     build:
@@ -10,9 +8,9 @@ services:
     environment:
       - HOST=0.0.0.0
       - PORT=2611
-    volumes:
-      # Mount for development database persistence (optional)
-      - ./demo_trading.db:/app/backend/demo_trading.db
+    # volumes:
+    #   # Mount for development database persistence (optional)
+    #   - ./data.db:/app/backend/data.db
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:2611/api/health" ]
@@ -20,3 +18,10 @@ services:
       timeout: 10s
       retries: 3
       start_period: 40s
+    labels:
+      # Traefik configuration
+      - "traefik.enable=true"
+      - "traefik.http.routers.app.rule=Host(`usmm.subx.fun`)"
+      - "traefik.http.routers.app.entrypoints=websecure"
+      - "traefik.http.routers.app.tls.certresolver=letsencrypt"
+      - "traefik.http.services.app.loadbalancer.server.port=2611"

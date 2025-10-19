@@ -148,14 +148,14 @@ async def get_stock_kline(
         包含K线数据的响应
     """
     try:
-        # 参数验证
-        valid_periods = ['1m', '5m', '15m', '30m', '1h', '1d']
+        # 参数验证 - yfinance支持的时间周期
+        valid_periods = ['1d', '5d', '1mo', '3mo', '6mo', '1y', '2y', '5y', '10y', 'ytd', 'max']
         if period not in valid_periods:
             raise HTTPException(
                 status_code=400, 
-                detail=f"不支持的时间周期，支持的周期: {', '.join(valid_periods)}"
+                detail=f"不支持的时间周期，yfinance支持的周期: {', '.join(valid_periods)}"
             )
-        
+            
         if count <= 0 or count > 500:
             raise HTTPException(status_code=400, detail="数据条数必须在1-500之间")
         

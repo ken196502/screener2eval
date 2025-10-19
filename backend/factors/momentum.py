@@ -63,23 +63,23 @@ def compute_momentum(history: Dict[str, pd.DataFrame], top_spot: Optional[pd.Dat
         momentum = calculate_momentum_simple(df)
         rows.append({
             "代码": code, 
-            "动量因子": momentum
+            "Momentum": momentum
         })
     
     # Sort by momentum factor from high to low
     df_result = pd.DataFrame(rows)
     if not df_result.empty:
-        df_result = df_result.sort_values("动量因子", ascending=False)
+        df_result = df_result.sort_values("Momentum", ascending=False)
     
     return df_result
 
 
 MOMENTUM_FACTOR = Factor(
     id="momentum",
-    name="动量因子",
-    description="动量因子：(后段最低点 - 前段最低点) / 整段最长K线，从大到小排序",
+    name="Momentum",
+    description="Momentum：(后段最低点 - 前段最低点) / 整段最长K线，从大到小排序",
     columns=[
-        {"key": "动量因子", "label": "动量因子", "type": "number", "sortable": True},
+        {"key": "Momentum", "label": "Momentum", "type": "number", "sortable": True},
         {"key": "动量评分", "label": "动量评分", "type": "score", "sortable": True},
     ],
     compute=lambda history, top_spot=None: compute_momentum(history, top_spot),

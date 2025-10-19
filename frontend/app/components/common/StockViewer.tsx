@@ -101,12 +101,12 @@ export default function StockViewer({ symbol, title, subtitle, className = "" }:
         )}
 
         {!stockInfoLoading && !stockInfoError && stockInfo.length > 0 && (
-          <div className="max-h-[35vh] overflow-y-auto">
+          <div className="max-h-[28vh] overflow-y-auto">
             <div className="grid grid-cols-1 gap-1 text-sm">
               {stockInfo.map((info, index) => (
                 <div key={index} className="flex justify-between py-1 border-b border-gray-500 last:border-b-0">
                   <span className="font-medium text-gray-600 truncate mr-2">{info.item}:</span>
-                  <span className="text-right">{info.value || '-'}</span>
+                  <span className="text-left">{info.value || '-'}</span>
                 </div>
               ))}
             </div>
