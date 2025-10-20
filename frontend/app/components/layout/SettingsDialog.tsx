@@ -8,16 +8,14 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
 import { getXueqiuCookie, saveXueqiuCookie } from '@/lib/api'
 
 interface SettingsDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
-  isRequired?: boolean
 }
 
-export default function SettingsDialog({ open, onOpenChange, isRequired = false }: SettingsDialogProps) {
+export default function SettingsDialog({ open, onOpenChange }: SettingsDialogProps) {
   const [cookieValue, setCookieValue] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
@@ -41,16 +39,19 @@ export default function SettingsDialog({ open, onOpenChange, isRequired = false 
   }
 
   const handleSave = async () => {
-    if (!cookieValue.trim()) {
-      setError('请输入雪球Cookie字符串')
-      return
-    }
-
     setLoading(true)
     setError('')
 
     try {
-      const data = await saveXueqiuCookie(cookieValue.trim())
+      const trimmed = cookieValue.trim()
+      if (!trimmed) {
+        onOpenChange(false)
+        setError('')
+        setLoading(false)
+        return
+      }
+
+      const data = await saveXueqiuCookie(trimmed)
       
       if (data.success) {
         onOpenChange(false)
@@ -80,24 +81,18 @@ export default function SettingsDialog({ open, onOpenChange, isRequired = false 
   }
 
   const handleCancel = () => {
-    if (isRequired) {
-      // 如果是必需配置，不允许直接关闭
-      return
-    }
     setCookieValue('')
     setError('')
     onOpenChange(false)
   }
 
   return (
-    <Dialog open={open} onOpenChange={isRequired ? undefined : onOpenChange}>
+    <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[600px]">
         <DialogHeader>
           <DialogTitle>雪球Cookie配置</DialogTitle>
           <DialogDescription>
-            {isRequired 
-              ? '首次使用需要配置雪球Cookie以获取市场数据。请从浏览器复制完整的Cookie字符串。' 
-              : '更新雪球Cookie配置以确保市场数据正常获取。'}
+            更新雪球Cookie配置以确保市场数据正常获取（可选）。
           </DialogDescription>
         </DialogHeader>
         
@@ -129,11 +124,9 @@ export default function SettingsDialog({ open, onOpenChange, isRequired = false 
         </div>
 
         <DialogFooter>
-          {!isRequired && (
-            <Button variant="outline" onClick={handleCancel}>
-              取消
-            </Button>
-          )}
+          <Button variant="outline" onClick={handleCancel}>
+            取消
+          </Button>
           <Button onClick={handleSave} disabled={loading}>
             {loading ? '保存中...' : '保存'}
           </Button>
