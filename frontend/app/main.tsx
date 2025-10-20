@@ -9,6 +9,17 @@ import { Button } from '@/components/ui/button'
 // Create a module-level WebSocket singleton to avoid duplicate connections in React StrictMode
 let __WS_SINGLETON__: WebSocket | null = null;
 
+const resolveWsUrl = () => {
+  if (typeof window === 'undefined') return 'ws://localhost:2611/ws'
+  const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
+  return `${protocol}//${window.location.host}/ws`
+}
+
+const resolveApiBase = () => {
+  if (typeof window !== 'undefined') return window.location.origin
+  return import.meta.env.VITE_API_BASE ?? 'http://127.0.0.1:2611'
+}
+
 import Header from '@/components/layout/Header'
 import Sidebar from '@/components/layout/Sidebar'
 import TradingPanel from '@/components/trading/TradingPanel'
@@ -54,7 +65,7 @@ function App() {
     let ws = __WS_SINGLETON__
     const created = !ws || ws.readyState === WebSocket.CLOSING || ws.readyState === WebSocket.CLOSED
     if (created) {
-      ws = new WebSocket('ws://localhost:2611/ws')
+      ws = new WebSocket(resolveWsUrl())
       __WS_SINGLETON__ = ws
     }
     wsRef.current = ws!
@@ -205,7 +216,7 @@ function App() {
 }
 
 
-const API_BASE = 'http://127.0.0.1:2611'
+const API_BASE = resolveApiBase()
 
 function OrderBookWS({ orders }: { orders: Order[] }) {
   return (
