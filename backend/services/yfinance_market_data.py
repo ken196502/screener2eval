@@ -17,8 +17,8 @@ def get_last_price_from_yfinance(symbol: str, market: str = "US") -> float:
     使用yfinance获取股票最新价格
     
     Args:
-        symbol: 股票代码，如 'AAPL'
-        market: 市场代码，默认为'US'
+        symbol: 股票Symbol，如 'AAPL'
+        market: 市场Symbol，默认为'US'
         
     Returns:
         最新价格
@@ -27,7 +27,7 @@ def get_last_price_from_yfinance(symbol: str, market: str = "US") -> float:
         Exception: 当无法获取价格时抛出异常
     """
     try:
-        # yfinance可以直接处理美股代码，无需市场后缀
+        # yfinance可以直接处理美股Symbol，无需市场后缀
         ticker = yf.Ticker(symbol)
         
         # 获取实时数据
@@ -67,7 +67,7 @@ def get_kline_data_from_yfinance(symbol: str, period: str = '1d', count: int = 1
     使用yfinance获取K线数据
     
     Args:
-        symbol: 股票代码
+        symbol: 股票Symbol
         period: 时间周期，支持 '1d', '5d', '1mo', '3mo', '6mo', '1y', '2y', '5y', '10y', 'ytd', 'max'
         count: 数据条数
         
@@ -163,7 +163,7 @@ def get_market_status_from_yfinance(symbol: str) -> Dict[str, Any]:
     使用yfinance获取市场状态
     
     Args:
-        symbol: 股票代码
+        symbol: 股票Symbol
         
     Returns:
         市场状态信息

@@ -117,7 +117,7 @@ class XueqiuMarketData:
         获取K线数据
         
         Args:
-            symbol: 股票代码，如 'MSFT'
+            symbol: 股票Symbol，如 'MSFT'
             period: 时间周期，如 '1m', '5m', '15m', '30m', '1h', '1d'
             count: 获取数据条数，负数表示获取最新的数据
             
@@ -190,7 +190,7 @@ class XueqiuMarketData:
         获取最新价格
         
         Args:
-            symbol: 股票代码
+            symbol: 股票Symbol
             
         Returns:
             最新价格，失败返回None
@@ -295,7 +295,7 @@ class XueqiuMarketData:
         获取市场状态信息
         
         Args:
-            symbol: 股票代码
+            symbol: 股票Symbol
             
         Returns:
             市场状态信息
@@ -328,8 +328,8 @@ def get_last_price_from_xueqiu(symbol: str, market: str = "US") -> float:
     从雪球获取最新价格
     
     Args:
-        symbol: 股票代码
-        market: 市场代码
+        symbol: 股票Symbol
+        market: 市场Symbol
         
     Returns:
         最新价格
@@ -348,7 +348,7 @@ def get_kline_data_from_xueqiu(symbol: str, period: str = '1m', count: int = 100
     从雪球获取K线数据
     
     Args:
-        symbol: 股票代码
+        symbol: 股票Symbol
         period: 时间周期
         count: 数据条数
         

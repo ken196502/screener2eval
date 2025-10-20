@@ -6,31 +6,28 @@ import { RefreshCw, TrendingUp, TrendingDown } from 'lucide-react'
 import StockViewer from '@/components/common/StockViewer'
 import StockViewerDrawer from '@/components/common/StockViewerDrawer'
 
+interface FactorColumn {
+  key: string
+  label: string
+  type: string
+  sortable: boolean
+}
+
 interface Factor {
   id: string
   name: string
   description: string
-  columns: Array<{
-    key: string
-    label: string
-    type: string
-    sortable: boolean
-  }>
+  columns: FactorColumn[]
 }
 
 interface FactorsResponse {
   success: boolean
   factors: Factor[]
-  all_columns: Array<{
-    key: string
-    label: string
-    type: string
-    sortable: boolean
-  }>
+  all_columns: FactorColumn[]
 }
 
 interface RankingData {
-  代码: string
+  Symbol: string
   [key: string]: any
 }
 
@@ -46,13 +43,24 @@ const RankingTable: React.FC<RankingTableProps> = ({ className = "" }) => {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [days, setDays] = useState(100)
-  const [sortColumn, setSortColumn] = useState<string>('综合评分')
+  const [sortColumn, setSortColumn] = useState<string>('Composite Score')
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc')
   const [selectedSymbol, setSelectedSymbol] = useState<string | null>('NVDA')
   const [drawerOpen, setDrawerOpen] = useState(false)
   const [isMobile, setIsMobile] = useState(false)
   const tableContainerRef = useRef<HTMLDivElement | null>(null)
   const hasFocusedTableRef = useRef(false)
+
+  const scoreColumnKeys = useMemo(() => {
+    const keys = new Set<string>()
+    allColumns.forEach(col => {
+      if (col.type === 'score') {
+        keys.add(col.key)
+      }
+    })
+    keys.add('Composite Score')
+    return keys
+  }, [allColumns])
 
   // Detect mobile device
   useEffect(() => {
@@ -108,21 +116,35 @@ const RankingTable: React.FC<RankingTableProps> = ({ className = "" }) => {
       const data = await response.json()
 
       if (data.success) {
-        setRankingData(data.data || [])
-
-        // Auto-sort by 综合评分 if available, otherwise first numeric column
-        if (data.data && data.data.length > 0) {
-          const firstRow = data.data[0]
-          if ('综合评分' in firstRow && !sortColumn) {
-            setSortColumn('综合评分')
-          } else if (!sortColumn) {
-            const numericColumns = Object.keys(firstRow).filter(key =>
-              key !== '代码' && typeof firstRow[key] === 'number'
+        const processedData = (data.data || []).map((row: RankingData) => {
+          const hasComposite = Object.prototype.hasOwnProperty.call(row, 'Composite Score')
+          const numericScores = Object.entries(row)
+            .filter(([key, value]) =>
+              scoreColumnKeys.has(key) && typeof value === 'number'
             )
-            if (numericColumns.length > 0) {
-              setSortColumn(numericColumns[0])
-            }
+            .map(([, value]) => value as number)
+
+          let composite = hasComposite ? row['Composite Score'] : undefined
+          if ((composite == null || typeof composite !== 'number') && numericScores.length > 0) {
+            const sum = numericScores.reduce((acc, val) => acc + val, 0)
+            composite = sum / numericScores.length
           }
+
+          return {
+            ...row,
+            ...(composite != null ? { 'Composite Score': composite } : {})
+          }
+        })
+
+        setRankingData(processedData)
+
+        // Auto-sort by Composite Score if available, otherwise first numeric column
+        if (data.data && data.data.length > 0 && !sortColumn) {
+          const availableScores = data.data
+            .flatMap((row: RankingData) => Object.keys(row))
+            .filter((key, index, arr) => arr.indexOf(key) === index && scoreColumnKeys.has(key) && key !== 'Symbol')
+
+          setSortColumn(availableScores[0] || 'Symbol')
         }
       } else {
         setError(data.message || 'Failed to fetch ranking data')
@@ -161,7 +183,7 @@ const RankingTable: React.FC<RankingTableProps> = ({ className = "" }) => {
     if (sortedData.length === 0) return
     const normalizedSelection = selectedSymbol ? selectedSymbol : null
     const currentIndex = normalizedSelection
-      ? sortedData.findIndex(row => normalizeSymbol(row.代码) === normalizedSelection)
+      ? sortedData.findIndex(row => normalizeSymbol(row.Symbol) === normalizedSelection)
       : -1
     
     let newIndex = currentIndex
@@ -172,7 +194,7 @@ const RankingTable: React.FC<RankingTableProps> = ({ className = "" }) => {
     }
     
     if (newIndex !== currentIndex && newIndex >= 0) {
-      handleSelectSymbol(sortedData[newIndex].代码)
+      handleSelectSymbol(sortedData[newIndex].Symbol)
     }
   }
 
@@ -207,7 +229,7 @@ const RankingTable: React.FC<RankingTableProps> = ({ className = "" }) => {
       if (event.key !== 'ArrowDown' && event.key !== 'ArrowUp') return
       const normalizedSelection = selectedSymbol ? selectedSymbol : null
       const currentIndex = normalizedSelection
-        ? sortedData.findIndex(row => normalizeSymbol(row.代码) === normalizedSelection)
+        ? sortedData.findIndex(row => normalizeSymbol(row.Symbol) === normalizedSelection)
         : -1
 
       const targetByIndex = (index: number) => {
@@ -219,13 +241,13 @@ const RankingTable: React.FC<RankingTableProps> = ({ className = "" }) => {
         event.preventDefault()
         const nextIndex = currentIndex >= 0 ? currentIndex + 1 : 0
         const target = targetByIndex(nextIndex)
-        handleSelectSymbol(target.代码)
+        handleSelectSymbol(target.Symbol)
       } else if (event.key === 'ArrowUp') {
         event.preventDefault()
         if (currentIndex <= 0) return
         const nextIndex = currentIndex - 1
         const target = targetByIndex(nextIndex)
-        handleSelectSymbol(target.代码)
+        handleSelectSymbol(target.Symbol)
       }
     }
 
@@ -253,16 +275,47 @@ const RankingTable: React.FC<RankingTableProps> = ({ className = "" }) => {
     return String(value)
   }
 
-  const getColumns = () => {
-    if (rankingData.length === 0) return ['代码']
+  const columns = useMemo(() => {
+    if (rankingData.length === 0) return ['Symbol']
 
-    const allColumns = Object.keys(rankingData[0])
-    // Priority order: 代码, 综合评分, then other columns
-    const priorityColumns = ['代码', '综合评分']
-    const otherColumns = allColumns.filter(col => !priorityColumns.includes(col))
-    
-    return [...priorityColumns, ...otherColumns].filter(col => allColumns.includes(col))
-  }
+    const availableKeys = new Set<string>()
+    rankingData.forEach(row => {
+      Object.keys(row).forEach(key => {
+        availableKeys.add(key)
+      })
+    })
+
+    const priorityColumns = ['Symbol', 'Composite Score'].filter(col => availableKeys.has(col) || col === 'Symbol')
+
+    const scoreColumnsOrdered = allColumns
+      .map(col => col.key)
+      .filter(key => availableKeys.has(key) && scoreColumnKeys.has(key) && !priorityColumns.includes(key))
+
+    const fallbackScores = Array.from(availableKeys)
+      .filter(key => scoreColumnKeys.has(key) && !priorityColumns.includes(key) && !scoreColumnsOrdered.includes(key))
+
+    const uniqueColumns: string[] = []
+    const pushUnique = (key: string) => {
+      if (!uniqueColumns.includes(key)) {
+        uniqueColumns.push(key)
+      }
+    }
+
+    priorityColumns.forEach(pushUnique)
+    scoreColumnsOrdered.forEach(pushUnique)
+    fallbackScores.forEach(pushUnique)
+
+    return uniqueColumns.length > 0 ? uniqueColumns : ['Symbol']
+  }, [rankingData, allColumns, scoreColumnKeys])
+
+  useEffect(() => {
+    if (columns.length === 0) return
+    if (!columns.includes(sortColumn)) {
+      const nextSort = columns.find(col => col !== 'Symbol') || columns[0]
+      setSortColumn(nextSort)
+      setSortDirection('desc')
+    }
+  }, [columns, sortColumn])
 
   const getColumnLabel = (column: string) => {
     // First check in allColumns (includes composite score)
@@ -295,7 +348,7 @@ const RankingTable: React.FC<RankingTableProps> = ({ className = "" }) => {
     return sortDirection === 'asc' ? <TrendingUp className="w-4 h-4" /> : <TrendingDown className="w-4 h-4" />
   }
 
-  const stockList = useMemo(() => sortedData.map(row => normalizeSymbol(row.代码)), [sortedData])
+  const stockList = useMemo(() => sortedData.map(row => normalizeSymbol(row.Symbol)), [sortedData])
 
   return (
     <div className={`flex h-full ${className}`}>
@@ -304,22 +357,22 @@ const RankingTable: React.FC<RankingTableProps> = ({ className = "" }) => {
         {/* Controls */}
         <div className="flex gap-4 mb-4 flex-wrap">
           <div className="flex items-center gap-2">
-            <label className="text-sm font-medium">历史天数:</label>
+            <label className="text-sm font-medium">History (days):</label>
             <Select value={days.toString()} onValueChange={(value) => setDays(parseInt(value))}>
               <SelectTrigger className="w-24">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="30">30天</SelectItem>
-                <SelectItem value="60">60天</SelectItem>
-                <SelectItem value="100">100天</SelectItem>
-                <SelectItem value="200">200天</SelectItem>
+                <SelectItem value="30">30 Days</SelectItem>
+                <SelectItem value="60">60 Days</SelectItem>
+                <SelectItem value="100">100 Days</SelectItem>
+                <SelectItem value="200">200 Days</SelectItem>
               </SelectContent>
             </Select>
           </div>
 
           <div className="flex items-center gap-2">
-            <label className="text-sm font-medium">因子:</label>
+            <label className="text-sm font-medium">Factors:</label>
             <Select
               value={selectedFactors.length === factors.length ? "all" : "custom"}
               onValueChange={(value) => {
@@ -377,7 +430,7 @@ const RankingTable: React.FC<RankingTableProps> = ({ className = "" }) => {
             <Table>
               <TableHeader>
                 <TableRow>
-                  {getColumns().map((column) => (
+                  {columns.map((column) => (
                     <TableHead
                       key={column}
                       className="cursor-pointer hover:bg-muted/50"
@@ -393,15 +446,15 @@ const RankingTable: React.FC<RankingTableProps> = ({ className = "" }) => {
               </TableHeader>
               <TableBody>
                 {sortedData.map((row, index) => {
-                  const isSelected = normalizeSymbol(row.代码) === selectedSymbol
+                  const isSelected = normalizeSymbol(row.Symbol) === selectedSymbol
                   return (
                     <TableRow
-                      key={row.代码 || index}
+                      key={row.Symbol || index}
                       className={`${isSelected ? 'bg-muted' : ''} cursor-pointer`}
                     >
-                    {getColumns().map((column) => (
+                    {columns.map((column) => (
                       <TableCell key={column}>
-                        {column === '代码' ? (
+                        {column === 'Symbol' ? (
                           <button
                             onClick={() => handleSelectSymbol(row[column])}
                             className="font-mono font-bold hover:text-teal-500 hover:underline cursor-pointer"
@@ -425,15 +478,15 @@ const RankingTable: React.FC<RankingTableProps> = ({ className = "" }) => {
         {!loading && !error && rankingData.length === 0 && selectedFactors.length > 0 && (
           <div className="text-center py-8 text-muted-foreground">
             <TrendingUp className="w-12 h-12 mx-auto mb-4 opacity-50" />
-            <p>暂无排行数据</p>
-            <p className="text-sm">请检查数据库中是否有足够的K线数据</p>
+            <p>No ranking data available</p>
+            <p className="text-sm">Check whether sufficient daily K-line data exists</p>
           </div>
         )}
 
         {/* No factors selected */}
         {selectedFactors.length === 0 && (
           <div className="text-center py-8 text-muted-foreground">
-            <p>请选择要计算的因子</p>
+            <p>Please select factors to compute</p>
           </div>
         )}
       </div>

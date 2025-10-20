@@ -8,18 +8,18 @@ from models import Factor
 
 
 def calculate_days_from_longest_candle(df_window):
-    """计算最长K线实体到最新价格的天数（向量化版本）"""
+    """Days since candle with largest real body (vectorized)."""
     if len(df_window) < 2:
         return 0
     
-    # 计算相对昨收的实体幅度
-    first_close = df_window.iloc[0]['收盘']
-    body_lengths = (df_window.iloc[1:]['收盘'] - df_window.iloc[1:]['开盘']).abs() * 100 / first_close
+    # Calculate real body length relative to prior close
+    first_close = df_window.iloc[0]['Close']
+    body_lengths = (df_window.iloc[1:]['Close'] - df_window.iloc[1:]['Open']).abs() * 100 / first_close
     
-    # 找到最大实体的索引（从后往前，所以相同长度时选择最近的）
+    # Find index of maximum body (searching from end prefers recent when tied)
     max_idx_rev = body_lengths.iloc[::-1].idxmax()
     
-    # 返回天数差（从最后一天往前数）
+    # Days counted from latest candle backward
     return len(df_window) - 1 - max_idx_rev + 1
 
 
@@ -40,19 +40,19 @@ def compute_support(history: Dict[str, pd.DataFrame], top_spot: Optional[pd.Data
             
         # Convert date column to datetime for proper sorting if needed
         df_copy = df.copy()
-        if not pd.api.types.is_datetime64_any_dtype(df_copy['日期']):
-            df_copy['日期'] = pd.to_datetime(df_copy['日期'])
+        if not pd.api.types.is_datetime64_any_dtype(df_copy['Date']):
+            df_copy['Date'] = pd.to_datetime(df_copy['Date'])
         
-        df_sorted = df_copy.sort_values("日期", ascending=True)
+        df_sorted = df_copy.sort_values("Date", ascending=True)
         
         # Convert DataFrame to list of candle dictionaries
         candles = []
         for _, row in df_sorted.iterrows():
             candles.append({
-                'open': row['开盘'],
-                'close': row['收盘'],
-                'high': row['最高'],
-                'low': row['最低']
+                'open': row['Open'],
+                'close': row['Close'],
+                'high': row['High'],
+                'low': row['Low']
             })
         
         # Calculate days from longest candle with specified window
@@ -71,10 +71,9 @@ def compute_support(history: Dict[str, pd.DataFrame], top_spot: Optional[pd.Data
         # Get the window for price ratio calculation
         window = candles[-actual_window:]
         
-        # Use window first price / window last price as described
-        # For support factor, we want higher values when price has declined from window start
+        # For support factor, higher values when price declined from window start
 
-        # Calculate price ratio: (昨开-昨收)/(昨低-今低)-1
+        # Calculate price ratio: (Prev Open - Prev Close)/(Prev Low - Curr Low) scaled
         if len(window) >= 2:
             yesterday = window[-2]
             today = window[-1]
@@ -91,14 +90,16 @@ def compute_support(history: Dict[str, pd.DataFrame], top_spot: Optional[pd.Data
         else:
             price_ratio = 1.0
         
-        # Final support factor: combine time factor with price movement
-        # Higher values indicate stronger support (recent longest candle + price decline)
+        # Combine time factor with price movement; higher suggests stronger support
         support_factor = support_factor_base * price_ratio
         
+        normalized = 1 / (1 + np.exp(-support_factor))
+
         rows.append({
-            "代码": code, 
+            "Symbol": code, 
             "Support": support_factor,
-            f"D From Max Candel_{window_size}日": days_from_longest,
+            "Support Score": normalized,
+            f"Days From Longest Candle_{window_size}": days_from_longest,
         })
     
     return pd.DataFrame(rows)
@@ -112,20 +113,20 @@ def compute_support_with_default_window(history: Dict[str, pd.DataFrame], top_sp
     result = compute_support(history, top_spot, DEFAULT_WINDOW_SIZE)
     
     # Rename the dynamic column to a fixed name for the factor definition
-    dynamic_col = f"D From Max Candel_{DEFAULT_WINDOW_SIZE}日"
+    dynamic_col = f"Days From Longest Candle_{DEFAULT_WINDOW_SIZE}"
     if dynamic_col in result.columns:
-        result = result.rename(columns={dynamic_col: "D From Max Candel"})
+        result = result.rename(columns={dynamic_col: "Days From Longest Candle"})
     
     return result
 
 SUPPORT_FACTOR = Factor(
     id="support",
     name="Support",
-    description=f"基于最长K线实体距离的支撑强度：计算{DEFAULT_WINDOW_SIZE}日窗口内最长K线实体（相对昨收幅度）到当前的天数，天数越多支撑越强，值越大越好",
+    description=f"Support strength based on distance from largest candle within {DEFAULT_WINDOW_SIZE} days; higher is better",
     columns=[
         {"key": "Support", "label": "Support", "type": "number", "sortable": True},
-        # {"key": "支撑评分", "label": "支撑评分", "type": "score", "sortable": True},
-        {"key": "D From Max Candel", "label": f"{DEFAULT_WINDOW_SIZE}D from Max Candel", "type": "number", "sortable": True},
+        {"key": "Support Score", "label": "Support Score", "type": "score", "sortable": True},
+        {"key": "Days From Longest Candle", "label": f"{DEFAULT_WINDOW_SIZE} Days From Longest Candle", "type": "number", "sortable": True},
     ],
     compute=lambda history, top_spot=None: compute_support_with_default_window(history, top_spot),
 )

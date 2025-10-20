@@ -153,13 +153,13 @@ def get_gmteight_news(
 
 def extract_stock_codes(text: str) -> List[str]:
     """
-    从文本中提取股票代码，格式为括号内以.US结尾的代码
+    从文本中提取股票Symbol，格式为括号内以.US结尾的Symbol
     
     参数:
         text: 要搜索的文本
     
     返回:
-        提取到的股票代码列表，例如['AMD.US', 'NVDA.US']
+        提取到的股票Symbol列表，例如['AMD.US', 'NVDA.US']
     """
     pattern = r'\(([A-Z]+\.US)\)'
     matches = re.findall(pattern, text)
@@ -168,13 +168,13 @@ def extract_stock_codes(text: str) -> List[str]:
 
 def filter_us_stock_news(news_list: List[Dict]) -> List[Dict]:
     """
-    过滤以"美股异动 |"开头的新闻，并提取股票代码
+    过滤以"美股异动 |"开头的新闻，并提取股票Symbol
     
     参数:
         news_list: 原始新闻列表
     
     返回:
-        过滤后的新闻列表，包含提取的股票代码
+        过滤后的新闻列表，包含提取的股票Symbol
     """
     filtered_news = []
     
@@ -186,7 +186,7 @@ def filter_us_stock_news(news_list: List[Dict]) -> List[Dict]:
     for news in news_list:
         title = news.get('title', '')
         if any(title.startswith(prefix) for prefix in prefixes):
-            # 从标题中提取股票代码
+            # 从标题中提取股票Symbol
             stock_codes = extract_stock_codes(title)
             
             # 如果标题中没有找到，再从摘要中找
@@ -201,7 +201,7 @@ def filter_us_stock_news(news_list: List[Dict]) -> List[Dict]:
                 if stock_list:
                     stock_codes = [stock_list] if isinstance(stock_list, str) else stock_list
             
-            # 添加股票代码字段到新闻条目
+            # 添加股票Symbol字段到新闻条目
             news_with_codes = news.copy()
             news_with_codes['stock_codes'] = stock_codes
             
@@ -259,13 +259,13 @@ def parse_gmteight_news_item(news_item: Dict) -> Dict:
 
 def filter_gmteight_stock_news(news_list: List[Dict]) -> List[Dict]:
     """
-    过滤GMT Eight中以"US Stock Market Move |"开头的新闻并提取股票代码
+    过滤GMT Eight中以"US Stock Market Move |"开头的新闻并提取股票Symbol
 
     参数:
         news_list: 原始新闻列表
 
     返回:
-        过滤后的新闻列表，包含提取的股票代码
+        过滤后的新闻列表，包含提取的股票Symbol
     """
     filtered_news = []
     prefix = 'US Stock Market Move |'
@@ -300,7 +300,7 @@ def display_news(news_list: List[Dict], show_stock_codes: bool = False) -> None:
     
     参数:
         news_list: 新闻列表
-        show_stock_codes: 是否显示提取的股票代码
+        show_stock_codes: 是否显示提取的股票Symbol
     """
     print("\n" + "="*80)
     print(f"{'美股异动新闻':^76}")
@@ -310,9 +310,9 @@ def display_news(news_list: List[Dict], show_stock_codes: bool = False) -> None:
         print(f"【{idx}】 {news['title']}")
         print(f"    摘要: {news['digest']}")
         
-        # 如果有股票代码，显示它们
+        # 如果有股票Symbol，显示它们
         if show_stock_codes and 'stock_codes' in news and news['stock_codes']:
-            print(f"    股票代码: {', '.join(news['stock_codes'])}")
+            print(f"    股票Symbol: {', '.join(news['stock_codes'])}")
         
         print(f"    关键词: {news['keywords']}")
         print(f"    作者: {news['author']} | 时间: {news['create_time']} | 浏览: {news['browse_count']}")
@@ -338,13 +338,13 @@ def save_to_json(news_list: List[Dict], filename: str = 'us_stock_news.json') ->
 
 def get_us_stock_movement_news(page: int = 1) -> List[Dict]:
     """
-    获取并过滤美股异动新闻，提取股票代码
+    获取并过滤美股异动新闻，提取股票Symbol
     
     参数:
         page: 页码，默认为1
     
     返回:
-        过滤后的美股异动新闻列表，包含股票代码
+        过滤后的美股异动新闻列表，包含股票Symbol
     """
     print(f"正在获取第{page}页美股异动新闻...")
     
@@ -365,7 +365,7 @@ def get_us_stock_movement_news(page: int = 1) -> List[Dict]:
     # 解析新闻数据
     parsed_news = [parse_news_item(item) for item in news_list]
     
-    # 过滤美股异动新闻并提取股票代码
+    # 过滤美股异动新闻并提取股票Symbol
     us_stock_news = filter_us_stock_news(parsed_news)
     
     return us_stock_news

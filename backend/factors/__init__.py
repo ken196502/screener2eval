@@ -40,13 +40,13 @@ def list_factors() -> List[Factor]:
 
 
 def compute_all_factors(history: Dict[str, pd.DataFrame], top_spot: Optional[pd.DataFrame] = None) -> pd.DataFrame:
-    """Compute all registered factor DataFrames and outer-join them by '代码'."""
+    """Compute all registered factor DataFrames and outer-join them by 'Symbol'."""
     dfs: List[pd.DataFrame] = []
     for factor in list_factors():
         try:
             df = factor.compute(history, top_spot)
             if df is not None and not df.empty:
-                if '代码' not in df.columns:
+                if 'Symbol' not in df.columns:
                     continue
                 dfs.append(df)
         except Exception as e:
@@ -56,12 +56,12 @@ def compute_all_factors(history: Dict[str, pd.DataFrame], top_spot: Optional[pd.
         return pd.DataFrame()
     result = dfs[0]
     for df in dfs[1:]:
-        result = result.merge(df, on='代码', how='outer')
+        result = result.merge(df, on='Symbol', how='outer')
     return result
 
 
 def compute_selected_factors(history: Dict[str, pd.DataFrame], top_spot: Optional[pd.DataFrame] = None, selected_factor_ids: Optional[List[str]] = None) -> pd.DataFrame:
-    """Compute only selected factor DataFrames and outer-join them by '代码'."""
+    """Compute only selected factor DataFrames and outer-join them by 'Symbol'."""
     if selected_factor_ids is None:
         return compute_all_factors(history, top_spot)
     
@@ -73,7 +73,7 @@ def compute_selected_factors(history: Dict[str, pd.DataFrame], top_spot: Optiona
         try:
             df = factor.compute(history, top_spot)
             if df is not None and not df.empty:
-                if '代码' not in df.columns:
+                if 'Symbol' not in df.columns:
                     continue
                 dfs.append(df)
         except Exception as e:
@@ -85,5 +85,5 @@ def compute_selected_factors(history: Dict[str, pd.DataFrame], top_spot: Optiona
     
     result = dfs[0]
     for df in dfs[1:]:
-        result = result.merge(df, on='代码', how='outer')
+        result = result.merge(df, on='Symbol', how='outer')
     return result

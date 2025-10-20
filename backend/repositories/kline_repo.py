@@ -19,8 +19,8 @@ class KlineRepository:
         保存K线数据到数据库（使用upsert模式）
         
         Args:
-            symbol: 股票代码
-            market: 市场代码
+            symbol: 股票Symbol
+            market: 市场Symbol
             period: 时间周期
             kline_data: K线数据列表
             
@@ -87,8 +87,8 @@ class KlineRepository:
         获取K线数据
         
         Args:
-            symbol: 股票代码
-            market: 市场代码
+            symbol: 股票Symbol
+            market: 市场Symbol
             period: 时间周期
             limit: 限制数量
             
@@ -108,8 +108,8 @@ class KlineRepository:
         删除旧的K线数据
         
         Args:
-            symbol: 股票代码
-            market: 市场代码
+            symbol: 股票Symbol
+            market: 市场Symbol
             period: 时间周期
             keep_days: 保留天数
         """

@@ -61,8 +61,8 @@ async def get_stock_price(symbol: str, market: str = "US"):
     获取股票最新价格
     
     Args:
-        symbol: 股票代码，如 'MSFT'
-        market: 市场代码，默认 'US'
+        symbol: 股票Symbol，如 'MSFT'
+        market: 市场Symbol，默认 'US'
         
     Returns:
         包含最新价格的响应
@@ -88,8 +88,8 @@ async def get_multiple_prices(symbols: str, market: str = "US"):
     批量获取多个股票的最新价格
     
     Args:
-        symbols: 股票代码列表，逗号分隔，如 'MSFT,AAPL,TSLA'
-        market: 市场代码，默认 'US'
+        symbols: 股票Symbol列表，逗号分隔，如 'MSFT,AAPL,TSLA'
+        market: 市场Symbol，默认 'US'
         
     Returns:
         包含多个股票价格的响应列表
@@ -98,10 +98,10 @@ async def get_multiple_prices(symbols: str, market: str = "US"):
         symbol_list = [s.strip() for s in symbols.split(',') if s.strip()]
         
         if not symbol_list:
-            raise HTTPException(status_code=400, detail="股票代码列表不能为空")
+            raise HTTPException(status_code=400, detail="股票Symbol列表不能为空")
         
         if len(symbol_list) > 20:
-            raise HTTPException(status_code=400, detail="最多支持20个股票代码")
+            raise HTTPException(status_code=400, detail="最多支持20个股票Symbol")
         
         results = []
         import time
@@ -139,8 +139,8 @@ async def get_stock_kline(
     获取股票K线数据
     
     Args:
-        symbol: 股票代码，如 'MSFT'
-        market: 市场代码，默认 'US'
+        symbol: 股票Symbol，如 'MSFT'
+        market: 市场Symbol，默认 'US'
         period: 时间周期，支持 '1m', '5m', '15m', '30m', '1h', '1d'
         count: 数据条数，默认100，最大500
         
@@ -198,8 +198,8 @@ async def get_stock_market_status(symbol: str, market: str = "US"):
     获取股票市场状态
     
     Args:
-        symbol: 股票代码，如 'MSFT'
-        market: 市场代码，默认 'US'
+        symbol: 股票Symbol，如 'MSFT'
+        market: 市场Symbol，默认 'US'
         
     Returns:
         包含市场状态的响应

@@ -307,3 +307,4 @@ backend/data.db
 us_stock_news.json
 data.db
 backend/tests/
+.vscode/

@@ -30,9 +30,9 @@ def create_order(db: Session, user: User, symbol: str, name: str, market: str,
     Args:
         db: 数据库会话
         user: 用户对象
-        symbol: 股票代码
+        symbol: 股票Symbol
         name: 股票名称
-        market: 市场代码
+        market: 市场Symbol
         side: 买卖方向 (BUY/SELL)
         order_type: 订单类型 (MARKET/LIMIT)
         price: 委托价格 (限价单必填)
@@ -60,11 +60,11 @@ def create_order(db: Session, user: User, symbol: str, name: str, market: str,
     # 获取当前市价用于资金检查（仅在有cookie配置时）
     current_market_price = None
     if order_type == "MARKET":
-        # 市价单必须获取当前价格
-        from .market_data import _check_xueqiu_cookie_available
-        if not _check_xueqiu_cookie_available():
-            raise ValueError("市价单需要实时行情数据，请先在设置中配置雪球Cookie")
-        current_market_price = get_last_price(symbol, market)
+        # 市价单获取当前价格进行资金校验
+        try:
+            current_market_price = get_last_price(symbol, market)
+        except Exception as err:
+            raise ValueError(f"市价单无法获取实时行情: {err}")
         check_price = Decimal(str(current_market_price))
     else:
         # 限价单使用委托价格进行资金检查
@@ -135,11 +135,6 @@ def check_and_execute_order(db: Session, order: Order) -> bool:
         return False
     
     # 检查是否有cookie配置，没有则跳过订单检查
-    from .market_data import _check_xueqiu_cookie_available
-    if not _check_xueqiu_cookie_available():
-        logger.debug(f"跳过订单 {order.order_no} 检查：雪球cookie未配置")
-        return False
-    
     try:
         # 获取当前市价
         current_price = get_last_price(order.symbol, order.market)

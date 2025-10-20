@@ -116,7 +116,7 @@ def print_stock_info(topics_id: int = 447, page: int = 3, proxy: str = "http://1
     for item in data:
         if 'quote' in item and item['quote']:
             quote = item['quote'][0]
-            print(f"股票代码: {quote.get('code', 'N/A')}")
+            print(f"股票Symbol: {quote.get('code', 'N/A')}")
             print(f"股票名称: {quote.get('name', 'N/A')}")
             print(f"当前价格: {quote.get('price', 'N/A')}")
             print(f"涨跌幅: {quote.get('changeRatio', 'N/A')}")

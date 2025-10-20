@@ -91,7 +91,7 @@ async def get_filtered_us_stock_movement(page: int = Query(1, ge=1, le=100)) -> 
         page: 页码，默认为1
     
     返回:
-        过滤后的美股异动新闻列表，包含股票代码
+        过滤后的美股异动新闻列表，包含股票Symbol
     """
     try:
         # 获取原始新闻
@@ -106,7 +106,7 @@ async def get_filtered_us_stock_movement(page: int = Query(1, ge=1, le=100)) -> 
         # 解析新闻数据
         parsed_news = [parse_news_item(item) for item in news_list]
         
-        # 过滤美股异动新闻并提取股票代码
+        # 过滤美股异动新闻并提取股票Symbol
         us_stock_news = filter_us_stock_news(parsed_news)
         
         return {
@@ -150,7 +150,7 @@ async def get_gmteight_news_api(
         parsed_news = [parse_gmteight_news_item(item) for item in news_list]
         filtered_news = filter_gmteight_stock_news(parsed_news)
 
-        # 提取并去重股票代码
+        # 提取并去重股票Symbol
         all_stock_codes = []
         for news in filtered_news:
             stock_codes = news.get('stock_codes', [])

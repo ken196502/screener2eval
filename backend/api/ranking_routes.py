@@ -27,8 +27,8 @@ async def get_available_factors():
     
     # Add composite score column definition
     all_columns.append({
-        "key": "综合评分",
-        "label": "综合评分",
+        "key": "Composite Score",
+        "label": "Composite Score",
         "type": "score",
         "sortable": True
     })
@@ -84,13 +84,13 @@ async def get_ranking_table(
             history[symbol] = []
         
         history[symbol].append({
-            "日期": kline.datetime_str,
-            "开盘": float(kline.open_price) if kline.open_price else 0,
-            "最高": float(kline.high_price) if kline.high_price else 0,
-            "最低": float(kline.low_price) if kline.low_price else 0,
-            "收盘": float(kline.close_price) if kline.close_price else 0,
-            "成交量": float(kline.volume) if kline.volume else 0,
-            "成交额": float(kline.amount) if kline.amount else 0,
+            "Date": kline.datetime_str,
+            "Open": float(kline.open_price) if kline.open_price else 0,
+            "High": float(kline.high_price) if kline.high_price else 0,
+            "Low": float(kline.low_price) if kline.low_price else 0,
+            "Close": float(kline.close_price) if kline.close_price else 0,
+            "Volume": float(kline.volume) if kline.volume else 0,
+            "Amount": float(kline.amount) if kline.amount else 0,
         })
     
     # Convert to DataFrames
@@ -98,8 +98,8 @@ async def get_ranking_table(
     for symbol, data in history.items():
         if len(data) >= 10:  # Minimum data requirement
             df = pd.DataFrame(data)
-            df["日期"] = pd.to_datetime(df["日期"], format='mixed')
-            history_dfs[symbol] = df.sort_values("日期")
+            df["Date"] = pd.to_datetime(df["Date"], format='mixed')
+            history_dfs[symbol] = df.sort_values("Date")
     
     if not history_dfs:
         return {
@@ -123,12 +123,12 @@ async def get_ranking_table(
         }
     
     # Calculate composite score if multiple score columns exist
-    score_columns = [col for col in result_df.columns if col.endswith('评分') or 'score' in col.lower()]
+    score_columns = [col for col in result_df.columns if 'score' in col.lower()]
     if len(score_columns) > 0:
         # Calculate mean of all score columns, ignoring NaN
-        result_df['综合评分'] = result_df[score_columns].mean(axis=1, skipna=True)
+        result_df['Composite Score'] = result_df[score_columns].mean(axis=1, skipna=True)
         # Sort by composite score descending
-        result_df = result_df.sort_values('综合评分', ascending=False, na_position='last')
+        result_df = result_df.sort_values('Composite Score', ascending=False, na_position='last')
     
     # Convert to list of dictionaries and limit results
     result_data = result_df.head(limit).to_dict('records')
