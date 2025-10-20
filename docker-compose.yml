@@ -1,30 +1,20 @@
+version: '3.8'
+
 services:
   app:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    ports:
-      - "2611:2611"
-    environment:
-      - HOST=0.0.0.0
-      - PORT=2611
-    # volumes:
-    #   # Mount for development database persistence (optional)
-    #   - ./data.db:/app/backend/data.db
+    build: .
+    container_name: usmover
     restart: unless-stopped
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:2611/api/health" ]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 40s
+    ports:
+      - "2611:2611"  # 暴露到宿主机2611端口
+    volumes:
+      - ./data:/app/data  # 持久化数据目录
     labels:
-      # Traefik configuration
       - "traefik.enable=true"
-      - "traefik.http.routers.app.rule=Host(`usmm.subx.fun`)"
-      - "traefik.http.routers.app.entrypoints=websecure"
-      - "traefik.http.routers.app.tls.certresolver=letsencrypt"
-      - "traefik.http.services.app.loadbalancer.server.port=2611"
+      - "traefik.http.routers.usmover.rule=Host(`usmm.subx.fun`)"
+      - "traefik.http.routers.usmover.entrypoints=websecure"
+      - "traefik.http.routers.usmover.tls.certresolver=letsencrypt"
+      - "traefik.http.services.usmover.loadbalancer.server.port=2611"
     networks:
       - traefik
 

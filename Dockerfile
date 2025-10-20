@@ -1,52 +1,44 @@
-# Multi-stage build for React frontend and Python backend
-
-# Stage 1: Build frontend
-FROM node:18-alpine AS frontend-builder
+FROM node:20-alpine AS frontend-build
 
 WORKDIR /app
 
-# Copy package files for workspace
-COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
-COPY frontend/package.json ./frontend/
+# Install pnpm globally
+RUN npm install -g pnpm
 
-# Install pnpm and dependencies
-RUN npm install -g pnpm@8.15.5
-RUN pnpm install --frozen-lockfile
+# Copy frontend source code
+COPY frontend/ .
 
-# Copy frontend source
-COPY frontend/ ./frontend/
+# Install frontend dependencies and build
+RUN pnpm install && pnpm run build
 
-# Build frontend for production
-WORKDIR /app/frontend
-RUN pnpm run build
+# Backend build
+FROM python:3.13-slim
 
-# Stage 2: Setup Python backend
-FROM python:3.13-slim AS backend
-
-WORKDIR /app
-
-# Install uv for Python dependency management
 RUN pip install uv
 
-# Copy backend files
-COPY backend/ ./backend/
-COPY backend/pyproject.toml backend/uv.lock ./backend/
+WORKDIR /app
 
-# Install Python dependencies
-WORKDIR /app/backend
+# Copy backend files
+COPY backend/ ./
+
+# Copy frontend build to backend static directory
+COPY --from=frontend-build /app/dist ./static
+
+# Create __init__.py files for all directories containing Python files
+RUN find . -name "*.py" -exec dirname {} \; | xargs -I {} touch {}/__init__.py
+
+# Install dependencies using uv
 RUN uv sync --frozen
 
-# Copy built frontend static files to backend static directory
-COPY --from=frontend-builder /app/frontend/dist /app/backend/static
+# Activate virtual environment
+ENV VIRTUAL_ENV=/app/.venv
+ENV PATH="$VIRTUAL_ENV/bin:$PATH"
+
+ENV PYTHONPATH=/app
 
 # Expose port
 EXPOSE 2611
 
-# Set environment variables
-ENV PYTHONPATH=/app/backend
-ENV HOST=0.0.0.0
-ENV PORT=2611
-
 # Start the application
-WORKDIR /app/backend
+WORKDIR /app
 CMD ["uv", "run", "uvicorn", "main:app", "--host", "0.0.0.0", "--port", "2611"]
