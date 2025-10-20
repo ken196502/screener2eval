@@ -126,7 +126,7 @@ async def get_filtered_us_stock_movement(page: int = Query(1, ge=1, le=100)) -> 
 async def get_gmteight_news_api(
     page: int = Query(1, ge=1, le=100),
     page_size: int = Query(50, ge=1, le=200),
-    save_kline: bool = Query(True, description="是否保存股票K线数据"),
+    save_kline: bool = Query(False, description="是否保存股票K线数据"),
 ) -> Dict:
     """
     获取GMT Eight新闻，并可选择保存相关股票的K线数据

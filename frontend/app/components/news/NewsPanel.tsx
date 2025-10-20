@@ -50,7 +50,7 @@ export default function NewsPanel() {
       setLoading(true)
       setError(null)
 
-      const response = await fetch(`/api/news/gmteight?page=${page}`)
+      const response = await fetch(`/api/news/gmteight?page=${page}&save_kline=true`)
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`)
       }
