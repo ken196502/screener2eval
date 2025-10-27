@@ -166,6 +166,53 @@ def extract_stock_codes(text: str) -> List[str]:
     return matches
 
 
+def _contains_significant_increase(text: str) -> bool:
+    """
+    检测文本中是否包含涨幅 ≥5% 的信息（全局判断版）：
+    - 通用提取所有百分比数字（如 5%、+7.2%、7%）
+    - 仅判断“明确下跌”：带负号或全文包含下跌语义词
+    - 未明确为下跌的一律按上涨处理，避免漏掉上涨
+    """
+    if not text:
+        return False
+
+    s = text
+    # 百分数字匹配，捕获潜在符号 + / - 以及数值
+    percent_re = re.compile(r"([+\-\u2212\uFF0B\uFF0D]?)\s*(\d+(?:\.\d+)?)\s*%")
+
+    # 全文下跌语义词，用于排除
+    negative_markers = [
+        '跌', '下跌', '跌幅', '下滑', '下降', '回落', '走低', '暴跌', '大跌', '回撤',
+        'fall', 'falls', 'falling', 'fell', 'down', 'decline', 'declines',
+        'declined', 'decrease', 'decreased', 'drop', 'drops', 'dropped', 'lower'
+    ]
+
+    s_lower = s.lower()
+    has_global_negative = any(tok in s for tok in negative_markers) or any(tok in s_lower for tok in negative_markers)
+
+    for m in percent_re.finditer(s):
+        sign = m.group(1)
+        try:
+            val = float(m.group(2))
+        except ValueError:
+            continue
+        if val < 5.0:
+            continue
+
+        # 明确负号 => 下跌，排除
+        if sign in ['-', '\u2212', '\uFF0D']:
+            continue
+
+        # 全文出现明显下跌语义 => 作为下跌排除（宁可漏掉下跌，不漏上涨）
+        if has_global_negative:
+            continue
+
+        # 到这里表示存在一个 >=5% 且非明确下跌的百分比 => 视为上涨
+        return True
+
+    return False
+
+
 def filter_us_stock_news(news_list: List[Dict]) -> List[Dict]:
     """
     过滤以"美股异动 |"开头的新闻，并提取股票Symbol
@@ -260,6 +307,7 @@ def parse_gmteight_news_item(news_item: Dict) -> Dict:
 def filter_gmteight_stock_news(news_list: List[Dict]) -> List[Dict]:
     """
     过滤GMT Eight中以"US Stock Market Move |"开头的新闻并提取股票Symbol
+    只对内容中提到涨幅 ≥5% 的新闻进行股票提取操作
 
     参数:
         news_list: 原始新闻列表
@@ -273,6 +321,16 @@ def filter_gmteight_stock_news(news_list: List[Dict]) -> List[Dict]:
     for news in news_list:
         title = news.get('title', '')
         if not title.startswith(prefix):
+            continue
+
+        # 检查内容中是否包含涨幅 ≥5% 的信息
+        content_to_check = ' '.join([
+            title,
+            news.get('digest', ''),
+            news.get('content', '')
+        ])
+        
+        if not _contains_significant_increase(content_to_check):
             continue
 
         stock_codes = extract_stock_codes(title)
