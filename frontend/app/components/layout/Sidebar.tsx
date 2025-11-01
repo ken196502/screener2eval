@@ -15,7 +15,7 @@ export default function Sidebar({ currentPage = 'ranking', onPageChange }: Sideb
 
   return (
     <>
-      <aside className="w-16 border-r h-full p-2 flex flex-col items-center fixed md:relative left-0 top-0 z-50 bg-background md:inset-auto md:bg-transparent md:flex md:flex-col md:space-y-4 md:items-center md:justify-start md:p-2 md:w-16 md:h-full md:border-r">
+      <aside className="hidden md:flex md:w-16 md:border-r md:h-full md:p-2 md:flex-col md:items-center md:relative md:space-y-4">
         {/* Desktop Navigation */}
         <nav className="hidden md:flex md:flex-col md:space-y-4">
            <button 

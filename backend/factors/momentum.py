@@ -9,7 +9,7 @@ from models import Factor
 
 
 def calculate_momentum_simple(df: pd.DataFrame) -> float:
-    """Calculate (later-period low - earlier-period low) / longest candle"""
+    """Calculate (later-period low - first-period low) / first close price"""
     if len(df) < 2:
         return 0.0
     
@@ -23,32 +23,30 @@ def calculate_momentum_simple(df: pd.DataFrame) -> float:
     df_sorted = df_sorted.reset_index(drop=True)
     
     # Calculate the necessary values
-    # Minimum price in first half of period
+    # First candle low and close in the window
     half_idx = len(df_sorted) // 2
-    first_half_low = df_sorted.iloc[:half_idx]["Low"].min()
+    first_low = df_sorted.iloc[0]["Low"]
+    first_close = df_sorted.iloc[0]["Close"]
     
     # Minimum price in second half of period
     second_half_low = df_sorted.iloc[half_idx:]["Low"].min()
     
-    # Maximum daily body length (absolute |close - open|) in entire period
-    max_daily_change = (df_sorted["Close"] - df_sorted["Open"]).abs().max()
-    
     # Check for invalid data
-    if pd.isna(first_half_low) or pd.isna(second_half_low) or pd.isna(max_daily_change):
+    if pd.isna(first_low) or pd.isna(second_half_low) or pd.isna(first_close):
         return 0.0
     
-    first_half_low = float(first_half_low)
+    first_low = float(first_low)
     second_half_low = float(second_half_low)
-    max_daily_change = float(max_daily_change)
+    first_close = float(first_close)
     
-    if max_daily_change == 0:
+    if first_close == 0:
         return 0.0
     
-    return (second_half_low - first_half_low) / max_daily_change
+    return (second_half_low - first_low) / first_close
 
 
 def compute_momentum(history: Dict[str, pd.DataFrame], top_spot: Optional[pd.DataFrame] = None) -> pd.DataFrame:
-    """Calculate momentum factor using formula: (later-period low - earlier-period low) / longest candle
+    """Calculate momentum factor using formula: (later-period low - first-period low) / first close price
     
     Args:
         history: Historical price data
@@ -80,7 +78,7 @@ def compute_momentum(history: Dict[str, pd.DataFrame], top_spot: Optional[pd.Dat
 MOMENTUM_FACTOR = Factor(
     id="momentum",
     name="Momentum",
-    description="Momentum: (later-period low - earlier-period low) / longest candle, sorted descending",
+    description="Momentum: (later-period low - first-period low) / first close price, sorted descending",
     columns=[
         {"key": "Momentum", "label": "Momentum", "type": "number", "sortable": True},
         {"key": "Momentum Score", "label": "Momentum Score", "type": "score", "sortable": True},
